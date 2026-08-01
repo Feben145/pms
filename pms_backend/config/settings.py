@@ -10,6 +10,7 @@ document it in `.env.example` instead.
 
 from pathlib import Path
 from decouple import config, Csv
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
