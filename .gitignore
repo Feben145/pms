@@ -1,0 +1,21 @@
+# --- Python / Django ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+media/
+staticfiles/
+pms_backend/venv/
+pms_backend/.env
+
+# --- Node / React ---
+node_modules/
+pms_frontend/dist/
+pms_frontend/.env
+pms_frontend/.env.local
+
+# --- IDEs & System Files ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

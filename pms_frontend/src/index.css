@@ -1,0 +1,109 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * Design tokens for the PMS enterprise dashboard.
+ *
+ * Blue theme, matching the reference admin UI: deep navy sidebar,
+ * blue accent for primary actions and active states, cool neutral
+ * canvas (not warm) to pair cleanly with blue rather than fight it.
+ *
+ * The variable names below (--color-brass, --color-brass-dark) are
+ * historical from an earlier brass/gold palette -- kept as-is to avoid
+ * touching every component file, but their VALUES are now blue. Treat
+ * them as "accent" / "accent-dark", not literally brass.
+ */
+
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Core palette */
+  --color-ink: #132a4c;
+  --color-ink-soft: #1c3660;
+  --color-canvas: #f4f6f9;
+  --color-brass: #2563eb;
+  --color-brass-dark: #1d4ed8;
+
+  /* Semantic */
+  --color-success: #059669;
+  --color-success-soft: #d1fae5;
+  --color-warning: #d97706;
+  --color-warning-soft: #fef3c7;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fee2e2;
+  --color-info: #2563eb;
+  --color-info-soft: #dbeafe;
+}
+
+:root {
+  --background: #f4f6f9;
+  --foreground: #1c222e;
+
+  --card: #ffffff;
+  --card-foreground: #1c222e;
+
+  --popover: #ffffff;
+  --popover-foreground: #1c222e;
+
+  --primary: #132a4c;
+  --primary-foreground: #f4f6f9;
+
+  --secondary: #e7ecf3;
+  --secondary-foreground: #1c222e;
+
+  --muted: #e7ecf3;
+  --muted-foreground: #64748b;
+
+  --accent: #2563eb;
+  --accent-foreground: #ffffff;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  --border: #dce3ec;
+  --input: #dce3ec;
+  --ring: #2563eb;
+
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
+  .font-tabular {
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum";
+  }
+}
