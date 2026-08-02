@@ -121,6 +121,14 @@ class Tenant(OrgScopedModel):
     background_check_status = models.CharField(max_length=16, choices=BackgroundCheckStatus.choices, blank=True)
     blacklist_status = models.BooleanField(default=False)
 
+    # -- Approval & Workflow --
+    # Not user-editable via the form -- set only by the `approve` action
+    # on TenantViewSet, which also stamps approved_by/approval_date.
+    approved_by = models.ForeignKey(
+        "auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="approved_tenants"
+    )
+    approval_date = models.DateField(null=True, blank=True)
+
     class Meta:
         ordering = ["full_name"]
 

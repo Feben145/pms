@@ -31,7 +31,7 @@ export const NAV_GROUPS: NavGroup[] = [
     group: "Property Management",
     items: [
       { label: "Property List", icon: Building2, to: "/properties" },
-      { label: "Property Registration", icon: Building2, to: "/properties/new" },
+      
       { label: "Building", icon: Layers, to: "/buildings" },
       { label: "Floor", icon: Grid3x3, to: "/floors" },
       { label: "Unit", icon: Grid3x3, to: "/units" },
@@ -44,15 +44,17 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Lease Management", icon: FileText, to: "/leases" },
     ],
   },
-  /*
+  
   {
     group: "Rental Management",
     items: [
       { label: "Rent Invoice", icon: Receipt, to: "/invoices" },
-      { label: "Rent Collection", icon: Wallet, comingSoon: "/coming-soon/rent-collection" },
-      { label: "Arrears Management", icon: TrendingDown, comingSoon: "/coming-soon/arrears" },
+      //{ label: "Rent Collection", icon: Wallet, comingSoon: "/coming-soon/rent-collection" },
+      //{ label: "Arrears Management", icon: TrendingDown, comingSoon: "/coming-soon/arrears" },
     ],
   },
+ 
+  /*
   {
     group: "Maintenance",
     items: [
