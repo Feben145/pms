@@ -1,24 +1,19 @@
 /**
- * Decision-support dashboard: not just stats, but what needs a
- * property manager's attention today -- upcoming lease expirations,
- * overdue collections, and which properties are underperforming on
- * occupancy. Revenue trend and portfolio occupancy give the broader
- * picture. Every number here is computed from real records, following
- * the same aggregation principle used across the rest of the app.
+ * Decision-support dashboard: what needs a property manager's
+ * attention today -- upcoming lease expirations, overdue collections,
+ * underperforming properties -- plus quick actions to act on it
+ * immediately. No chart clutter; every figure here is a number you'd
+ * actually check before making a decision, computed from real records.
  */
 
 import { useNavigate } from "react-router-dom";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-} from "recharts";
 import { useCollection } from "../../hooks/useCollection";
 import type { Invoice, Lease, Property, Tenant, Unit } from "../../types/models";
 import { PageHeader } from "../../components/PageHeader";
 import { Card, CardHeader, CardTitle, CardValue, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { OccupancyBar } from "../../components/OccupancyBar";
-import { AlertTriangle, TrendingUp, CalendarClock, Wallet } from "lucide-react";
-
-const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+import { AlertTriangle, CalendarClock, Wallet, Plus, Building2, Users, FileText, Receipt } from "lucide-react";
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -33,21 +28,14 @@ export default function DashboardPage() {
   const occupancyRate = units.length > 0 ? Math.round((leasedUnits / units.length) * 100) : 0;
   const activeLeases = leases.filter((l) => l.status === "active").length;
 
-  // --- Revenue trend: last 6 months, collected vs invoiced ---
   const now = new Date();
-  const monthBuckets = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-    return { year: d.getFullYear(), month: d.getMonth(), label: MONTH_LABELS[d.getMonth()] };
-  });
-  const revenueTrend = monthBuckets.map(({ year, month, label }) => {
-    const monthInvoices = invoices.filter((inv) => {
+  const thisMonthKey = `${now.getFullYear()}-${now.getMonth()}`;
+  const revenueThisMonth = invoices
+    .filter((inv) => {
       const d = new Date(inv.due_date);
-      return d.getFullYear() === year && d.getMonth() === month;
-    });
-    const invoiced = monthInvoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0);
-    const collected = monthInvoices.reduce((sum, inv) => sum + (Number(inv.total_amount) - Number(inv.outstanding_balance)), 0);
-    return { label, invoiced: Math.round(invoiced), collected: Math.round(collected) };
-  });
+      return `${d.getFullYear()}-${d.getMonth()}` === thisMonthKey;
+    })
+    .reduce((sum, inv) => sum + (Number(inv.total_amount) - Number(inv.outstanding_balance)), 0);
 
   // --- Upcoming lease expirations (next 60 days) ---
   const in60Days = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
@@ -73,62 +61,53 @@ export default function DashboardPage() {
     .sort((a, b) => (a.occupancy_rate ?? 0) - (b.occupancy_rate ?? 0))
     .slice(0, 5);
 
+  const pendingLeases = leases.filter((l) => l.status === "draft" || l.status === "pending_approval").length;
+  const pendingTenants = tenants.filter((t) => t.status !== "approved" && t.status !== "active_tenant" && t.status !== "former_tenant").length;
+
   return (
     <div>
       <PageHeader title="Dashboard" description="Portfolio overview and what needs your attention" />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Properties" value={properties.length} onClick={() => navigate("/properties")} />
-        <StatCard label="Active Leases" value={activeLeases} onClick={() => navigate("/leases")} />
-        <StatCard label="Tenants" value={tenants.length} onClick={() => navigate("/tenants")} />
-        <StatCard label="Occupancy Rate" value={`${occupancyRate}%`} />
+      <div className="flex flex-wrap gap-2 mb-6">
+        <Button variant="outline" size="sm" onClick={() => navigate("/properties/new")}>
+          <Plus className="h-3.5 w-3.5" /> Property
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => navigate("/tenants/new")}>
+          <Plus className="h-3.5 w-3.5" /> Tenant
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => navigate("/leases/new")}>
+          <Plus className="h-3.5 w-3.5" /> Lease
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => navigate("/invoices")}>
+          <Plus className="h-3.5 w-3.5" /> Invoice
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-1.5"><TrendingUp className="h-3.5 w-3.5" /> Revenue Trend (6 Months)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={revenueTrend} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                  <XAxis dataKey="label" tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={40} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip
-                    formatter={(value: any) => [`ETB ${Number(value).toLocaleString()}`, ""]}
-                    contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
-                  />
-                  <Bar dataKey="invoiced" fill="var(--muted)" radius={[3, 3, 0, 0]} name="Invoiced" />
-                  <Bar dataKey="collected" fill="var(--accent)" radius={[3, 3, 0, 0]} name="Collected" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Properties" value={properties.length} icon={Building2} onClick={() => navigate("/properties")} />
+        <StatCard label="Active Leases" value={activeLeases} icon={FileText} onClick={() => navigate("/leases")} />
+        <StatCard label="Tenants" value={tenants.length} icon={Users} onClick={() => navigate("/tenants")} />
+        <StatCard label="Occupancy Rate" value={`${occupancyRate}%`} icon={Building2} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <Card>
+          <CardHeader className="pb-0"><CardTitle>Revenue This Month</CardTitle></CardHeader>
+          <CardContent className="pt-1">
+            <CardValue className="text-brass-dark">ETB {revenueThisMonth.toLocaleString()}</CardValue>
           </CardContent>
         </Card>
-
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" /> Collections Snapshot</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground mb-1">Total Outstanding</p>
-            <p className={`text-2xl font-semibold font-tabular mb-4 ${totalOutstanding > 0 ? "text-danger" : ""}`}>
-              ETB {totalOutstanding.toLocaleString()}
-            </p>
-            {overdueInvoices.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No overdue invoices — collections are current.</p>
-            ) : (
-              <div className="space-y-2">
-                {overdueInvoices.map((inv) => (
-                  <div key={inv.id} className="flex items-center justify-between text-sm cursor-pointer hover:bg-muted/50 -mx-1 px-1 py-0.5 rounded" onClick={() => navigate("/invoices")}>
-                    <span className="font-tabular text-muted-foreground">{inv.invoice_number}</span>
-                    <span className="font-tabular text-danger font-medium">ETB {Number(inv.outstanding_balance).toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+          <CardHeader className="pb-0"><CardTitle>Outstanding Balance</CardTitle></CardHeader>
+          <CardContent className="pt-1">
+            <CardValue className={totalOutstanding > 0 ? "text-danger" : ""}>ETB {totalOutstanding.toLocaleString()}</CardValue>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-0"><CardTitle>Awaiting Approval</CardTitle></CardHeader>
+          <CardContent className="pt-1">
+            <CardValue>{pendingLeases + pendingTenants}</CardValue>
+            <p className="text-xs text-muted-foreground mt-1">{pendingLeases} leases · {pendingTenants} tenants</p>
           </CardContent>
         </Card>
       </div>
@@ -168,6 +147,32 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader>
+            <CardTitle className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" /> Collections at Risk</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {overdueInvoices.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4">No overdue invoices — collections are current.</p>
+            ) : (
+              <div className="space-y-1">
+                {overdueInvoices.map((inv) => (
+                  <div
+                    key={inv.id}
+                    className="flex items-center justify-between py-2 border-b border-border last:border-0 cursor-pointer hover:bg-muted/50 -mx-1 px-1 rounded"
+                    onClick={() => navigate("/invoices")}
+                  >
+                    <span className="text-sm font-tabular text-foreground">{inv.invoice_number}</span>
+                    <span className="text-sm font-tabular text-danger font-medium">ETB {Number(inv.outstanding_balance).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
             <CardTitle className="flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> Properties Needing Attention</CardTitle>
           </CardHeader>
           <CardContent>
@@ -193,31 +198,34 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
-      </div>
 
-      <Card>
-        <CardHeader><CardTitle>Portfolio Occupancy</CardTitle></CardHeader>
-        <CardContent>
-          <OccupancyBar
-            segments={[
-              { label: "Leased", value: countByStatus("leased"), className: "bg-[var(--color-success)]" },
-              { label: "Vacant", value: countByStatus("vacant"), className: "bg-muted-foreground/30" },
-              { label: "Reserved", value: countByStatus("reserved"), className: "bg-[var(--color-info)]" },
-              { label: "Under maintenance", value: countByStatus("under_maintenance"), className: "bg-[var(--color-warning)]" },
-              { label: "Blocked", value: countByStatus("blocked"), className: "bg-[var(--color-danger)]" },
-            ]}
-          />
-        </CardContent>
-      </Card>
+        <Card>
+          <CardHeader><CardTitle>Portfolio Occupancy</CardTitle></CardHeader>
+          <CardContent>
+            <OccupancyBar
+              segments={[
+                { label: "Leased", value: countByStatus("leased"), className: "bg-[var(--color-success)]" },
+                { label: "Vacant", value: countByStatus("vacant"), className: "bg-muted-foreground/30" },
+                { label: "Reserved", value: countByStatus("reserved"), className: "bg-[var(--color-info)]" },
+                { label: "Under maintenance", value: countByStatus("under_maintenance"), className: "bg-[var(--color-warning)]" },
+                { label: "Blocked", value: countByStatus("blocked"), className: "bg-[var(--color-danger)]" },
+              ]}
+            />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
 
-function StatCard({ label, value, onClick }: { label: string; value: string | number; onClick?: () => void }) {
+function StatCard({
+  label, value, icon: Icon, onClick,
+}: { label: string; value: string | number; icon: typeof Building2; onClick?: () => void }) {
   return (
-    <Card onClick={onClick} className={onClick ? "cursor-pointer transition-shadow hover:shadow-md" : undefined}>
-      <CardHeader className="pb-0">
+    <Card onClick={onClick} className={onClick ? "cursor-pointer" : undefined}>
+      <CardHeader className="pb-0 flex flex-row items-center justify-between">
         <CardTitle>{label}</CardTitle>
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
       </CardHeader>
       <CardContent className="pt-1">
         <CardValue>{value}</CardValue>

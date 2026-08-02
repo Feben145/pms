@@ -33,6 +33,7 @@ class TenantSerializer(serializers.ModelSerializer):
     current_monthly_rent = serializers.SerializerMethodField()
     current_security_deposit = serializers.SerializerMethodField()
     outstanding_balance = serializers.SerializerMethodField()
+    approved_by_username = serializers.CharField(source="approved_by.username", read_only=True, default=None)
     created_by_username = serializers.CharField(source="created_by.username", read_only=True, default=None)
     updated_by_username = serializers.CharField(source="updated_by.username", read_only=True, default=None)
 
@@ -55,11 +56,22 @@ class TenantSerializer(serializers.ModelSerializer):
             "emergency_contact_name", "emergency_contact_relationship", "emergency_contact_phone",
             "preferred_language", "accessibility_requirements",
             "kyc_verified", "credit_check_status", "background_check_status", "blacklist_status",
+            "approved_by", "approved_by_username", "approval_date",
             "documents",
             "created_at", "updated_at", "created_by", "updated_by",
             "created_by_username", "updated_by_username",
         ]
-        read_only_fields = ["id", "created_at", "updated_at", "created_by", "updated_by"]
+        read_only_fields = [
+            "id", "created_at", "updated_at", "created_by", "updated_by",
+            "approved_by", "approval_date",
+        ]
+
+    def create(self, validated_data):
+        # Status is never taken from the create form -- every tenant
+        # starts as Prospect and only advances through workflow actions
+        # (approve), never by directly setting the field.
+        validated_data["status"] = Tenant.Status.PROSPECT
+        return super().create(validated_data)
 
     def _current_lease(self, obj):
         if not hasattr(obj, "_current_lease_cache"):

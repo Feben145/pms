@@ -62,11 +62,18 @@ class Lease(OrgScopedModel):
         NOT_ALLOWED = "not_allowed", "Not Allowed"
         CASE_BY_CASE = "case_by_case", "Case-by-case"
 
+    class InvoiceGenerationTermType(models.TextChoices):
+        FIXED = "fixed", "Fixed day of month"
+        RELATIVE = "relative", "Relative to due date"
+
     # -- Identification --
     unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="leases")
     tenant = models.ForeignKey(Tenant, on_delete=models.PROTECT, related_name="leases")
     lease_number = models.CharField(max_length=64, help_text="Human-readable contract number.")
-    lease_version = models.CharField(max_length=16, default="V1.0")
+    lease_version = models.CharField(
+        max_length=16, default="V1.0", editable=False,
+        help_text="Auto-managed: V1.0 on creation, minor version bumps on every subsequent edit.",
+    )
     lease_type = models.CharField(max_length=16, choices=LeaseType.choices, blank=True)
     status = models.CharField(max_length=32, choices=Status.choices, default=Status.DRAFT)
 
@@ -81,8 +88,6 @@ class Lease(OrgScopedModel):
     monthly_rent = models.DecimalField(max_digits=12, decimal_places=2)
     security_deposit = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     service_charge = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    utility_charges = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    parking_fee = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     currency = models.CharField(max_length=8, default="ETB")
     billing_frequency = models.CharField(
         max_length=16,
@@ -94,9 +99,24 @@ class Lease(OrgScopedModel):
     rent_escalation_type = models.CharField(max_length=16, choices=RentEscalationType.choices, blank=True)
     rent_escalation_percent = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
+    # -- Utilities (each type billed separately, agreed at lease level) --
+    electricity_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    water_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    gas_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    internet_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    other_utility_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    parking_fee = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
     # -- Billing & Payment --
+    invoice_generation_term_type = models.CharField(
+        max_length=16, choices=InvoiceGenerationTermType.choices, default=InvoiceGenerationTermType.FIXED,
+        help_text="Fixed: generate on a specific day each month. Relative: generate N days before the due date.",
+    )
     invoice_generation_day = models.PositiveSmallIntegerField(
-        null=True, blank=True, help_text="Day of the month invoices are generated."
+        null=True, blank=True, help_text="Used when term type is 'fixed': day of the month invoices are generated."
+    )
+    invoice_generation_relative_days = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Used when term type is 'relative': days before the due date to generate the invoice."
     )
     payment_method = models.CharField(max_length=16, choices=PaymentMethod.choices, blank=True)
     bank_account = models.CharField(max_length=64, blank=True)
@@ -104,6 +124,8 @@ class Lease(OrgScopedModel):
     grace_period_days = models.PositiveIntegerField(null=True, blank=True)
 
     # -- Approval & Workflow --
+    # Not user-editable via the form -- set only by the `approve` action,
+    # which also stamps approved_by/approval_date. See LeaseViewSet.approve.
     approval_status = models.CharField(max_length=16, choices=ApprovalStatus.choices, default=ApprovalStatus.PENDING)
     approved_by = models.ForeignKey(
         "auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="approved_leases"
@@ -126,6 +148,19 @@ class Lease(OrgScopedModel):
     class Meta:
         unique_together = ("organization", "lease_number")
         ordering = ["-start_date"]
+
+    def save(self, *args, **kwargs):
+        # lease_version is auto-managed, never set from a form: V1.0 on
+        # first save, minor bump (V1.0 -> V1.1 -> V1.2 ...) on every
+        # subsequent edit, so it reflects real edit history instead of
+        # being a manually-typed, easily-forgotten field.
+        if self.pk is not None:
+            try:
+                major, minor = self.lease_version.lstrip("Vv").split(".")
+                self.lease_version = f"V{major}.{int(minor) + 1}"
+            except (ValueError, AttributeError):
+                pass  # malformed existing value -- leave as-is rather than guess
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.lease_number} ({self.tenant} / {self.unit})"

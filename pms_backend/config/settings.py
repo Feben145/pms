@@ -10,7 +10,6 @@ document it in `.env.example` instead.
 
 from pathlib import Path
 from decouple import config, Csv
-import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -85,28 +84,14 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database: Postgres in every real environment; SQLite only as a zero-setup
 # fallback for quickly poking at the project without Docker.
 if config("USE_SQLITE", default=False, cast=bool):
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
-    }
-elif config("DATABASE_URL", default=""):
-    # Used for cloud deployment (Render, Supabase, etc.) using a single connection string
-    DATABASES = {
-        "default": dj_database_url.config(
-            default=config("DATABASE_URL"),
-            conn_max_age=600,
-        )
-    }
+    DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
 else:
-    # Your current local PostgreSQL configuration using individual environment variables
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": config("POSTGRES_DB", default=""),
-            "USER": config("POSTGRES_USER", default=""),
-            "PASSWORD": config("POSTGRES_PASSWORD", default=""),
+            "NAME": config("POSTGRES_DB", default="pms"),
+            "USER": config("POSTGRES_USER", default="pms"),
+            "PASSWORD": config("POSTGRES_PASSWORD", default="pms"),
             "HOST": config("POSTGRES_HOST", default="localhost"),
             "PORT": config("POSTGRES_PORT", default="5432"),
         }
@@ -125,7 +110,6 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Uploaded files (property images, documents). In production, point
