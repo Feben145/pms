@@ -10,6 +10,7 @@ document it in `.env.example` instead.
 
 from pathlib import Path
 from decouple import config, Csv
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -24,7 +25,7 @@ ALLOWED_HOSTS = config("DJANGO_ALLOWED_HOSTS", default="localhost,127.0.0.1", ca
 # that would let any website read authenticated API responses.
 CORS_ALLOWED_ORIGINS = config(
     "CORS_ALLOWED_ORIGINS",
-    default="http://localhost:5173,http://127.0.0.1:5173",
+    default="http://localhost:5173,http://127.0.0.1:5173,pms-backend-c8xo.onrender.com",
     cast=Csv(),
 )
 CORS_ALLOW_CREDENTIALS = True
@@ -85,6 +86,14 @@ WSGI_APPLICATION = "config.wsgi.application"
 # fallback for quickly poking at the project without Docker.
 if config("USE_SQLITE", default=False, cast=bool):
     DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
+elif config("DATABASE_URL", default=None):
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=config("DATABASE_URL"),
+            conn_max_age=600,
+            ssl_require=True
+        )
+    }
 else:
     DATABASES = {
         "default": {
