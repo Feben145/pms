@@ -125,6 +125,15 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Uploaded files (property images, documents). In production, point
 # these at real object storage (S3, etc.) via env vars -- local disk
 # storage is fine for development only.
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
