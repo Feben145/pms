@@ -51,13 +51,10 @@ class LeaseSerializer(serializers.ModelSerializer):
             "tenant_name", "tenant_contact_number", "tenant_email", "tenant_type",
             "start_date", "end_date", "lease_duration_days", "move_in_date", "move_out_date",
             "renewal_notice_period_days",
-            "monthly_rent", "security_deposit", "service_charge",
-            "electricity_charge", "water_charge", "gas_charge", "internet_charge",
-            "other_utility_charge", "parking_fee",
+            "monthly_rent", "security_deposit", "service_charge", "utility_charges", "parking_fee",
             "currency", "billing_frequency", "payment_due_day",
             "rent_escalation_type", "rent_escalation_percent", "total_monthly_charge",
-            "invoice_generation_term_type", "invoice_generation_day", "invoice_generation_relative_days",
-            "payment_method", "bank_account",
+            "invoice_generation_day", "payment_method", "bank_account",
             "late_payment_penalty_percent", "grace_period_days", "outstanding_balance",
             "approval_status", "approved_by", "approved_by_username", "approval_date",
             "digital_signature_status",
@@ -68,10 +65,7 @@ class LeaseSerializer(serializers.ModelSerializer):
             "created_at", "updated_at", "created_by", "updated_by",
             "created_by_username", "updated_by_username",
         ]
-        read_only_fields = [
-            "id", "created_at", "updated_at", "created_by", "updated_by",
-            "lease_version", "approval_status", "approved_by", "approval_date",
-        ]
+        read_only_fields = ["id", "created_at", "updated_at", "created_by", "updated_by"]
 
     def get_lease_id_display(self, obj):
         return f"LEA-{obj.id:04d}" if obj.id else None
@@ -82,11 +76,7 @@ class LeaseSerializer(serializers.ModelSerializer):
         return None
 
     def get_total_monthly_charge(self, obj):
-        utility_total = sum(filter(None, [
-            obj.electricity_charge, obj.water_charge, obj.gas_charge,
-            obj.other_utility_charge, obj.internet_charge,
-        ])) or 0
-        return (obj.monthly_rent or 0) + (obj.service_charge or 0) + utility_total + (obj.parking_fee or 0)
+        return (obj.monthly_rent or 0) + (obj.service_charge or 0) + (obj.utility_charges or 0) + (obj.parking_fee or 0)
 
     def get_outstanding_balance(self, obj):
         from decimal import Decimal
@@ -103,8 +93,8 @@ class LeaseSerializer(serializers.ModelSerializer):
         # "occupying" state at a time. Without this, nothing stopped two
         # active leases existing on the same unit simultaneously.
         unit = data.get("unit", getattr(self.instance, "unit", None))
-        lease_status = data.get("status", getattr(self.instance, "status", None))
-        if unit and lease_status in OCCUPYING_STATUSES:
+        status = data.get("status", getattr(self.instance, "status", None))
+        if unit and status in OCCUPYING_STATUSES:
             conflicting = Lease.objects.filter(
                 unit=unit, status__in=OCCUPYING_STATUSES
             ).exclude(pk=getattr(self.instance, "pk", None))
@@ -116,10 +106,6 @@ class LeaseSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        # Status is never taken from the create form -- every lease
-        # starts as Draft. It only moves forward through workflow
-        # actions (approve), never by directly setting the field.
-        validated_data["status"] = Lease.Status.DRAFT
         lease = super().create(validated_data)
         self._sync_unit_status(lease)
         return lease

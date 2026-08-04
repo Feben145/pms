@@ -316,6 +316,9 @@ export interface Tenant {
   credit_check_status: "pending" | "passed" | "failed" | "";
   background_check_status: "pending" | "cleared" | "flagged" | "";
   blacklist_status: boolean;
+  approved_by: number | null;
+  approved_by_username: string | null;
+  approval_date: string | null;
   documents: TenantDocument[];
   created_at: string;
   updated_at: string;
@@ -364,7 +367,11 @@ export interface Lease {
   monthly_rent: string;
   security_deposit: string;
   service_charge: string | null;
-  utility_charges: string | null;
+  electricity_charge: string | null;
+  water_charge: string | null;
+  gas_charge: string | null;
+  internet_charge: string | null;
+  other_utility_charge: string | null;
   parking_fee: string | null;
   currency: string;
   billing_frequency: "monthly" | "quarterly" | "annually";
@@ -372,7 +379,9 @@ export interface Lease {
   rent_escalation_type: "fixed_percent" | "cpi_based" | "";
   rent_escalation_percent: string | null;
   total_monthly_charge: string;
+  invoice_generation_term_type: "fixed" | "relative";
   invoice_generation_day: number | null;
+  invoice_generation_relative_days: number | null;
   payment_method: "bank_transfer" | "mobile_money" | "cash" | "";
   bank_account: string;
   late_payment_penalty_percent: string | null;

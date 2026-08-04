@@ -1,236 +1,243 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useLeases } from '../../context/LeaseContext';
-import { PageHeader } from '../../components/PageHeader';
+/**
+ * Read-focused view of a lease: parties, unit/property chain, full
+ * financial terms, related invoices with payment status, documents,
+ * and audit trail. Editing happens on a separate page
+ * (LeaseRegistrationPage in edit mode). The Approve action here is the
+ * only way a lease moves from Draft to Active -- there's no status
+ * dropdown anywhere in this app; the backend enforces this too.
+ */
+
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { FileText, CheckCircle2 } from "lucide-react";
+import { apiClient } from "../../api/client";
+import type { Lease, Invoice } from "../../types/models";
+import { useCollection } from "../../hooks/useCollection";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
+import { hasApprovalPrivilege } from "../../lib/approvals";
+import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Breadcrumb } from "../../components/Breadcrumb";
+import { StatusBadge } from "../../components/StatusBadge";
 
 export default function LeaseDetailPage() {
-  const { leaseId } = useParams<{ leaseId: string }>();
+  const { leaseId } = useParams();
   const navigate = useNavigate();
-  const { leases, deleteLease } = useLeases();
-  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'spatial' | 'policies'>('overview');
+  const [lease, setLease] = useState<Lease | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isApproving, setIsApproving] = useState(false);
+  const { user } = useCurrentUser();
+  const { items: invoices, isLoading: invoicesLoading } = useCollection<Invoice>("/rentals/", { lease: leaseId! });
 
-  // Find lease from context array
-  const lease = leases.find((l) => l.id === leaseId || l.leaseNumber === leaseId);
+  useEffect(() => {
+    loadLease();
+  }, [leaseId]);
 
-  if (!lease) {
-    return (
-      <div className="max-w-4xl mx-auto py-16 text-center space-y-4">
-        <h2 className="text-xl font-bold text-gray-800">Lease Agreement Not Found</h2>
-        <p className="text-sm text-gray-500">The lease record you are looking for does not exist or has been removed.</p>
-        <button
-          onClick={() => navigate('/leases')}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition"
-        >
-          Back to Leases List
-        </button>
-      </div>
-    );
+  function loadLease() {
+    apiClient.get<Lease>(`/leases/${leaseId}/`).then(({ data }) => {
+      setLease(data);
+      setIsLoading(false);
+    });
   }
 
-  const handleDelete = () => {
-    if (window.confirm('Are you sure you want to delete this lease record?')) {
-      deleteLease(lease.id);
-      navigate('/leases');
+  async function handleTerminate() {
+    if (!lease) return;
+    if (!confirm(`Terminate lease ${lease.lease_number}? This frees up the unit for reassignment.`)) return;
+    await apiClient.patch(`/leases/${leaseId}/`, { status: "terminated" });
+    loadLease();
+  }
+
+  async function handleApprove() {
+    if (!lease) return;
+    setIsApproving(true);
+    try {
+      await apiClient.post(`/leases/${leaseId}/approve/`);
+      loadLease();
+    } catch {
+      alert("Could not approve this lease. You may not have approval privileges.");
+    } finally {
+      setIsApproving(false);
     }
-  };
+  }
+
+  if (isLoading || !lease) {
+    return <div className="py-16 text-center text-sm text-muted-foreground">Loading...</div>;
+  }
+
+  const canTerminate = lease.status === "active" || lease.status === "renewal_pending";
+  const canApprove = (lease.status === "draft" || lease.status === "pending_approval") && hasApprovalPrivilege(user?.role);
+  const hasOutstanding = Number(lease.outstanding_balance) > 0;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      
-      {/* Header and Action Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <PageHeader 
-          title={`Lease Contract: ${lease.leaseNumber}`} 
-          description={`Registered agreement for ${lease.tenantName} at ${lease.propertyName}`} 
-        />
-        <div className="flex gap-3">
-          <button
-            onClick={() => navigate('/leases')}
-            className="px-4 py-2 border border-gray-300 text-gray-700 bg-white rounded-lg text-sm font-semibold hover:bg-gray-50 transition shadow-sm cursor-pointer"
-          >
-            &larr; Back to Leases
-          </button>
-          <button
-            onClick={handleDelete}
-            className="px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-semibold hover:bg-rose-700 transition shadow-sm cursor-pointer"
-          >
-            Delete Lease
-          </button>
+    <div>
+      <Breadcrumb items={[{ label: "Tenant & Lease" }, { label: "Lease Management", to: "/leases" }, { label: lease.lease_number }]} />
+
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">{lease.lease_number}</h1>
+            <StatusBadge status={lease.status} />
+            <span className="text-xs text-muted-foreground font-tabular">{lease.lease_version}</span>
+          </div>
+          <p className="text-sm text-muted-foreground font-tabular">{lease.lease_id_display} · {lease.tenant_name} · {lease.unit_number}</p>
+        </div>
+        <div className="flex gap-2">
+          {canApprove && (
+            <Button variant="accent" disabled={isApproving} onClick={handleApprove}>
+              <CheckCircle2 className="h-4 w-4" /> {isApproving ? "Approving..." : "Approve"}
+            </Button>
+          )}
+          {canTerminate && (
+            <Button variant="outline" className="text-danger border-danger/30 hover:bg-[var(--color-danger-soft)]" onClick={handleTerminate}>
+              Terminate
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => navigate(`/leases/${leaseId}/edit`)}>Edit Lease</Button>
         </div>
       </div>
 
-      {/* Summary Highlight Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <Card className="p-4 bg-white border border-gray-200">
-          <div className="text-xs font-semibold uppercase text-gray-500">Contract Status</div>
-          <div className="text-lg font-bold text-indigo-600 mt-1">{lease.leaseStatus || 'Active'}</div>
-        </Card>
-        <Card className="p-4 bg-white border border-gray-200">
-          <div className="text-xs font-semibold uppercase text-gray-500">Monthly Rent</div>
-          <div className="text-lg font-bold text-emerald-600 mt-1">ETB {Number(lease.monthlyRent || 0).toLocaleString()}</div>
-        </Card>
-        <Card className="p-4 bg-white border border-gray-200">
-          <div className="text-xs font-semibold uppercase text-gray-500">Lease Period</div>
-          <div className="text-sm font-semibold text-gray-800 mt-1">{lease.leaseStartDate} to {lease.leaseEndDate}</div>
-        </Card>
-        <Card className="p-4 bg-white border border-gray-200">
-          <div className="text-xs font-semibold uppercase text-gray-500">Security Deposit</div>
-          <div className="text-lg font-bold text-gray-900 mt-1">ETB {Number(lease.securityDeposit || 0).toLocaleString()}</div>
-        </Card>
-      </div>
-      {/* Navigation Tabs */}
-      <div className="flex border-b border-gray-200 bg-white rounded-t-xl px-4 pt-2 gap-6 shadow-xs">
-        {[
-          { id: 'overview', label: 'Tenant & General Info' },
-          { id: 'spatial', label: 'Property & Spatial Mapping' },
-          { id: 'financial', label: 'Financial & Payment Schedule' },
-          { id: 'policies', label: 'Compliance & Policies' },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`pb-3 text-sm font-medium border-b-2 transition cursor-pointer ${
-              activeTab === tab.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Monthly Rent" value={`${lease.currency} ${Number(lease.monthly_rent).toLocaleString()}`} />
+        <StatCard label="Security Deposit" value={`${lease.currency} ${Number(lease.security_deposit).toLocaleString()}`} />
+        <StatCard label="Lease Term" value={`${lease.start_date} → ${lease.end_date}`} />
+        <StatCard label="Outstanding Balance" value={`${lease.currency} ${Number(lease.outstanding_balance).toLocaleString()}`} danger={hasOutstanding} />
       </div>
 
-      {/* Tab Content Panels */}
-      <div className="bg-white rounded-b-xl border border-t-0 border-gray-200 p-6 shadow-xs">
-        
-        {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Lease ID</span>
-              <span className="text-sm font-medium text-gray-800">{lease.id}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Lease Type</span>
-              <span className="text-sm font-medium text-gray-800">{lease.leaseType}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Lease Version</span>
-              <span className="text-sm font-medium text-gray-800">{lease.leaseVersion || 'V1.0'}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Tenant ID</span>
-              <span className="text-sm font-medium text-gray-800">{lease.tenantId}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Tenant Name</span>
-              <span className="text-sm font-medium text-gray-800">{lease.tenantName}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Tenant Type</span>
-              <span className="text-sm font-medium text-gray-800">{lease.tenantType || 'Individual'}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Contact Number</span>
-              <span className="text-sm font-medium text-gray-800">{lease.contactNumber || 'N/A'}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Email Address</span>
-              <span className="text-sm font-medium text-gray-800">{lease.emailAddress || 'N/A'}</span>
-            </div>
-          </div>
-        )}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
+        <div className="space-y-6">
+          <Card>
+            <CardHeader><CardTitle>Property & Tenant</CardTitle></CardHeader>
+            <CardContent className="grid grid-cols-2 gap-4 text-sm">
+              <InfoRow label="Property" value={lease.property_name} />
+              <InfoRow label="Building" value={lease.building_name} />
+              <InfoRow label="Unit" value={lease.unit_number} />
+              <InfoRow label="Tenant" value={lease.tenant_name} />
+              <InfoRow label="Tenant Contact" value={lease.tenant_contact_number} />
+              <InfoRow label="Tenant Email" value={lease.tenant_email || "—"} />
+            </CardContent>
+          </Card>
 
-        {activeTab === 'spatial' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Property ID</span>
-              <span className="text-sm font-medium text-gray-800">{lease.propertyId}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Property Name</span>
-              <span className="text-sm font-medium text-gray-800">{lease.propertyName}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Building</span>
-              <span className="text-sm font-medium text-gray-800">{lease.buildingName || 'N/A'}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Unit Number</span>
-              <span className="text-sm font-medium text-gray-800">{lease.unitNumber || 'N/A'}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Lease Duration</span>
-              <span className="text-sm font-medium text-gray-800">{lease.leaseDuration || '12 Months'}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Move-In Date</span>
-              <span className="text-sm font-medium text-gray-800">{lease.moveInDate || lease.leaseStartDate}</span>
-            </div>
-          </div>
-        )}
+          <Card>
+            <CardHeader><CardTitle>Utilities</CardTitle></CardHeader>
+            <CardContent className="grid grid-cols-3 gap-4 text-sm">
+              <InfoRow label="Electricity" value={lease.electricity_charge ? `${lease.currency} ${Number(lease.electricity_charge).toLocaleString()}` : "—"} />
+              <InfoRow label="Water" value={lease.water_charge ? `${lease.currency} ${Number(lease.water_charge).toLocaleString()}` : "—"} />
+              <InfoRow label="Gas" value={lease.gas_charge ? `${lease.currency} ${Number(lease.gas_charge).toLocaleString()}` : "—"} />
+              <InfoRow label="Internet" value={lease.internet_charge ? `${lease.currency} ${Number(lease.internet_charge).toLocaleString()}` : "—"} />
+              <InfoRow label="Other" value={lease.other_utility_charge ? `${lease.currency} ${Number(lease.other_utility_charge).toLocaleString()}` : "—"} />
+              <InfoRow label="Parking" value={lease.parking_fee ? `${lease.currency} ${Number(lease.parking_fee).toLocaleString()}` : "—"} />
+            </CardContent>
+          </Card>
 
-        {activeTab === 'financial' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Monthly Rent</span>
-              <span className="text-sm font-bold text-emerald-600">ETB {Number(lease.monthlyRent || 0).toLocaleString()}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Security Deposit</span>
-              <span className="text-sm font-medium text-gray-800">ETB {Number(lease.securityDeposit || 0).toLocaleString()}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Service Charge</span>
-              <span className="text-sm font-medium text-gray-800">ETB {Number(lease.serviceCharge || 0).toLocaleString()}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Payment Frequency</span>
-              <span className="text-sm font-medium text-gray-800">{lease.paymentFrequency || 'Monthly'}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Payment Due Day</span>
-              <span className="text-sm font-medium text-gray-800">Day {lease.paymentDueDay || 5} of each month</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Payment Method</span>
-              <span className="text-sm font-medium text-gray-800">{lease.paymentMethod || 'Bank Transfer'}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Outstanding Balance</span>
-              <span className="text-sm font-bold text-rose-600">ETB {Number(lease.outstandingBalance || 0).toLocaleString()}</span>
-            </div>
-          </div>
-        )}
+          <Card>
+            <CardHeader><CardTitle>Invoices</CardTitle></CardHeader>
+            <CardContent>
+              {invoicesLoading ? (
+                <p className="text-sm text-muted-foreground py-4">Loading...</p>
+              ) : invoices.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4">No invoices generated yet for this lease.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>Invoice #</TableHead>
+                      <TableHead>Due</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Outstanding</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {invoices.map((inv) => (
+                      <TableRow key={inv.id} className="cursor-pointer" onClick={() => navigate("/invoices")}>
+                        <TableCell className="font-medium font-tabular">{inv.invoice_number}</TableCell>
+                        <TableCell className="text-muted-foreground">{inv.due_date}</TableCell>
+                        <TableCell className="text-right font-tabular">ETB {Number(inv.total_amount).toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-tabular">ETB {Number(inv.outstanding_balance).toLocaleString()}</TableCell>
+                        <TableCell><StatusBadge status={inv.status} /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
 
-        {activeTab === 'policies' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Renewal Option</span>
-              <span className="text-sm font-medium text-gray-800">{lease.renewalOption || 'Yes'}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Early Termination</span>
-              <span className="text-sm font-medium text-gray-800">{lease.earlyTerminationAllowed || 'Yes'}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Subletting Allowed</span>
-              <span className="text-sm font-medium text-gray-800">{lease.sublettingAllowed || 'No'}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Maintenance Responsibility</span>
-              <span className="text-sm font-medium text-gray-800">{lease.maintenanceResponsibility || 'Tenant'}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Pet Policy</span>
-              <span className="text-sm font-medium text-gray-800">{lease.petPolicy || 'Not Allowed'}</span>
-            </div>
-            <div>
-              <span className="text-xs font-semibold uppercase text-gray-400 block">Digital Signature</span>
-              <span className="text-sm font-medium text-indigo-600">{lease.digitalSignatureStatus || 'Signed'}</span>
-            </div>
-          </div>
-        )}
+          <Card>
+            <CardHeader><CardTitle>Documents</CardTitle></CardHeader>
+            <CardContent>
+              {(lease.documents ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">No documents uploaded.</p>
+              ) : (
+                <div className="space-y-2">
+                  {(lease.documents ?? []).map((doc) => (
+                    <div key={doc.id} className="flex items-center justify-between border border-border rounded-md px-3 py-2 text-sm">
+                      <span className="flex items-center gap-2"><FileText className="h-4 w-4 text-muted-foreground" /> {doc.name}</span>
+                      <a href={doc.file} target="_blank" rel="noreferrer" className="text-accent hover:underline text-xs">View</a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
+        <div className="space-y-4">
+          <Card className="p-4">
+            <h3 className="text-sm font-medium text-foreground mb-3">Terms & Conditions</h3>
+            <dl className="text-xs space-y-2">
+              <div className="flex justify-between"><dt className="text-muted-foreground">Renewal Option</dt><dd>{lease.renewal_option ? "Yes" : "No"}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">Early Termination</dt><dd>{lease.early_termination_allowed ? "Allowed" : "Not Allowed"}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">Insurance Required</dt><dd>{lease.insurance_required ? "Yes" : "No"}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">Subletting</dt><dd>{lease.subletting_allowed ? "Allowed" : "Not Allowed"}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">Pet Policy</dt><dd className="capitalize">{lease.pet_policy?.replace(/_/g, " ") || "—"}</dd></div>
+            </dl>
+          </Card>
+
+          <Card className="p-4">
+            <h3 className="text-sm font-medium text-foreground mb-3">Approval</h3>
+            <dl className="text-xs space-y-2">
+              <div className="flex justify-between"><dt className="text-muted-foreground">Status</dt><dd className="capitalize">{lease.approval_status}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">Signature</dt><dd className="capitalize">{lease.digital_signature_status.replace("_", " ")}</dd></div>
+              {lease.approved_by_username && (
+                <>
+                  <div className="flex justify-between"><dt className="text-muted-foreground">Approved By</dt><dd>{lease.approved_by_username}</dd></div>
+                  <div className="flex justify-between"><dt className="text-muted-foreground">Approval Date</dt><dd className="font-tabular">{lease.approval_date}</dd></div>
+                </>
+              )}
+            </dl>
+          </Card>
+
+          <Card className="p-4">
+            <h3 className="text-sm font-medium text-foreground mb-3">Audit Information</h3>
+            <dl className="text-xs space-y-2">
+              <div className="flex justify-between"><dt className="text-muted-foreground">Created By</dt><dd>{lease.created_by_username ?? "—"}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">Created</dt><dd className="font-tabular">{new Date(lease.created_at).toLocaleDateString()}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">Updated By</dt><dd>{lease.updated_by_username ?? "—"}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">Last updated</dt><dd className="font-tabular">{new Date(lease.updated_at).toLocaleDateString()}</dd></div>
+            </dl>
+          </Card>
+        </div>
       </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value, danger }: { label: string; value: string; danger?: boolean }) {
+  return (
+    <Card className="p-4">
+      <p className="text-xs text-muted-foreground mb-1">{label}</p>
+      <p className={`text-lg font-semibold ${danger ? "text-danger" : ""}`}>{value}</p>
+    </Card>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
+      <p className="text-foreground">{value}</p>
     </div>
   );
 }

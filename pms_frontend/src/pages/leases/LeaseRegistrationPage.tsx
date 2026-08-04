@@ -1,17 +1,18 @@
 /**
- * Full-page Lease Registration wizard, matching the established
- * pattern (Property/Building/Floor/Unit/Tenant). Property/Building/
- * Unit and Tenant contact details are read-only, derived from the
- * actual `unit`/`tenant` foreign keys -- same aggregation principle
- * used everywhere else, so a lease can never display a mismatched
- * property chain or stale tenant contact info.
+ * Full-page Lease Registration wizard. Status and lease_version are
+ * intentionally NOT form fields -- status starts at Draft always (the
+ * backend enforces this regardless of what's sent) and only advances
+ * via the Approve action on the list/detail page; lease_version
+ * auto-increments server-side on every edit. Property/Building/Floor
+ * selection is cascading so the tenant/unit picker always shows the
+ * real hierarchy instead of a flat, hard-to-navigate unit list.
  */
 
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Upload, FileText, X, Loader2 } from "lucide-react";
 import { apiClient } from "../../api/client";
-import type { Lease, LeaseDocument, Tenant, Unit } from "../../types/models";
+import type { Lease, LeaseDocument, Tenant, Unit, Floor, Building, Property } from "../../types/models";
 import { useCollection } from "../../hooks/useCollection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,13 +27,10 @@ import { StatusBadge } from "../../components/StatusBadge";
 type FormState = Partial<Lease>;
 
 const EMPTY_FORM: FormState = {
-  status: "draft",
-  lease_version: "V1.0",
   currency: "ETB",
   billing_frequency: "monthly",
   payment_due_day: 1,
-  approval_status: "pending",
-  digital_signature_status: "not_signed",
+  invoice_generation_term_type: "fixed",
 };
 
 export default function LeaseRegistrationPage() {
@@ -40,32 +38,52 @@ export default function LeaseRegistrationPage() {
   const [searchParams] = useSearchParams();
   const isEdit = !!leaseId;
   const navigate = useNavigate();
-  const { items: tenants } = useCollection<Tenant>("/tenants/");
-  const { items: units } = useCollection<Unit>("/properties/units/");
 
-  const [form, setForm] = useState<FormState>(() => {
-    const unitParam = searchParams.get("unit");
-    const tenantParam = searchParams.get("tenant");
-    return {
-      ...EMPTY_FORM,
-      ...(unitParam ? { unit: Number(unitParam) } : {}),
-      ...(tenantParam ? { tenant: Number(tenantParam) } : {}),
-    };
-  });
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [pendingDocs, setPendingDocs] = useState<{ name: string; file: File }[]>([]);
   const [existingDocs, setExistingDocs] = useState<LeaseDocument[]>([]);
   const [isLoading, setIsLoading] = useState(isEdit);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // -- Cascading hierarchy selection state (not saved directly -- only
+  // the final `unit` id is persisted on the Lease) --
+  const [selectedProperty, setSelectedProperty] = useState<number | null>(null);
+  const [selectedBuilding, setSelectedBuilding] = useState<number | null>(null);
+  const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
+
+  const { items: properties } = useCollection<Property>("/properties/");
+  const { items: buildings } = useCollection<Building>(
+    "/properties/buildings/",
+    selectedProperty ? { property: selectedProperty } : undefined
+  );
+  const { items: floors } = useCollection<Floor>(
+    "/properties/floors/",
+    selectedBuilding ? { building: selectedBuilding } : undefined
+  );
+  const { items: units } = useCollection<Unit>(
+    "/properties/units/",
+    selectedFloor ? { floor: selectedFloor } : undefined
+  );
+  const { items: tenants } = useCollection<Tenant>("/tenants/");
+
   useEffect(() => {
-    if (!isEdit) return;
+    if (!isEdit) {
+      const unitParam = searchParams.get("unit");
+      const tenantParam = searchParams.get("tenant");
+      setForm((f) => ({
+        ...f,
+        ...(unitParam ? { unit: Number(unitParam) } : {}),
+        ...(tenantParam ? { tenant: Number(tenantParam) } : {}),
+      }));
+      return;
+    }
     apiClient.get<Lease>(`/leases/${leaseId}/`).then(({ data }) => {
       setForm(data);
       setExistingDocs(data.documents ?? []);
       setIsLoading(false);
     });
-  }, [leaseId, isEdit]);
+  }, [leaseId, isEdit, searchParams]);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -88,7 +106,10 @@ export default function LeaseRegistrationPage() {
     try {
       const formData = new FormData();
       (Object.keys(form) as (keyof FormState)[]).forEach((key) => {
-        if (key === "documents") return;
+        // status and lease_version are never sent -- the backend owns
+        // both. Sending status would be silently ignored on create
+        // anyway, but omitting it keeps the intent explicit here too.
+        if (key === "documents" || key === "status" || key === "lease_version") return;
         const value = form[key];
         if (value === null || value === undefined || value === "") return;
         formData.append(key, String(value));
@@ -126,7 +147,15 @@ export default function LeaseRegistrationPage() {
       <Breadcrumb items={[{ label: "Tenant & Lease" }, { label: "Lease Management", to: "/leases" }, { label: isEdit ? "Edit" : "New" }]} />
 
       <div className="flex items-start justify-between mb-6">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">{isEdit ? "Edit Lease" : "Lease Registration"}</h1>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">{isEdit ? "Edit Lease" : "Lease Registration"}</h1>
+          {isEdit && (
+            <div className="flex items-center gap-2 mt-1">
+              <StatusBadge status={form.status ?? "draft"} />
+              <span className="text-xs text-muted-foreground font-tabular">{form.lease_version}</span>
+            </div>
+          )}
+        </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => navigate("/leases")}>Cancel</Button>
           <Button variant="accent" disabled={isSubmitting} onClick={handleSave}>
@@ -135,8 +164,17 @@ export default function LeaseRegistrationPage() {
         </div>
       </div>
 
-      {error && <p className="text-sm text-danger bg-[var(--color-danger-soft)] border border-danger/30 rounded-md px-3 py-2 mb-4">{error}</p>}
+      {!isEdit && (
+        <p className="text-xs text-muted-foreground mb-4">
+          New leases are always saved as <span className="font-medium">Draft</span>. An Owner or Property Manager approves it from the list or detail page to make it Active.
+        </p>
+      )}
 
+      {error && (
+        <p className="text-sm text-dangerbg-[var(--color-danger-soft)] border border-danger/30 rounded-md px-3 py-2 mb-4">
+          {error}
+        </p>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
         <Card className="p-5">
           <Tabs defaultValue="identification">
@@ -145,19 +183,15 @@ export default function LeaseRegistrationPage() {
               <TabsTrigger value="parties">Tenant & Unit</TabsTrigger>
               <TabsTrigger value="dates">Dates & Terms</TabsTrigger>
               <TabsTrigger value="financial">Financial</TabsTrigger>
+              <TabsTrigger value="utilities">Utilities</TabsTrigger>
               <TabsTrigger value="billing">Billing & Payment</TabsTrigger>
-              <TabsTrigger value="approval">Approval</TabsTrigger>
               <TabsTrigger value="conditions">Terms & Conditions</TabsTrigger>
               <TabsTrigger value="documents">Documents</TabsTrigger>
             </TabsList>
-
             <TabsContent value="identification">
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Lease Number" required>
                   <Input value={form.lease_number ?? ""} onChange={(e) => set("lease_number", e.target.value)} placeholder="LSE-2026-001" />
-                </Field>
-                <Field label="Lease Version">
-                  <Input value={form.lease_version ?? ""} onChange={(e) => set("lease_version", e.target.value)} />
                 </Field>
                 <Field label="Lease Type">
                   <Select value={form.lease_type || undefined} onValueChange={(v) => set("lease_type", v as Lease["lease_type"])}>
@@ -170,30 +204,47 @@ export default function LeaseRegistrationPage() {
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Lease Status">
-                  <Select value={form.status} onValueChange={(v) => set("status", v as Lease["status"])}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+              </div>
+            </TabsContent>
+            <TabsContent value="parties">
+              <p className="text-sm font-medium text-foreground mb-1">Property Hierarchy</p>
+              <p className="text-xs text-muted-foreground mb-3">Narrow down to the exact unit through the real portfolio structure.</p>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <Field label="Property">
+                  <Select value={selectedProperty ? String(selectedProperty) : undefined} onValueChange={(v) => { setSelectedProperty(Number(v)); setSelectedBuilding(null); setSelectedFloor(null); }}>
+                    <SelectTrigger><SelectValue placeholder="Select a property..." /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="pending_approval">Pending Approval</SelectItem>
-                      <SelectItem value="approved">Approved</SelectItem>
-                      <SelectItem value="awaiting_signature">Awaiting Signature</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="renewal_pending">Renewal Pending</SelectItem>
-                      <SelectItem value="renewed">Renewed</SelectItem>
-                      <SelectItem value="amended">Amended</SelectItem>
-                      <SelectItem value="suspended">Suspended</SelectItem>
-                      <SelectItem value="terminated">Terminated</SelectItem>
-                      <SelectItem value="expired">Expired</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                      {properties.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Building">
+                  <Select value={selectedBuilding ? String(selectedBuilding) : undefined} onValueChange={(v) => { setSelectedBuilding(Number(v)); setSelectedFloor(null); }} disabled={!selectedProperty}>
+                    <SelectTrigger><SelectValue placeholder={selectedProperty ? "Select a building..." : "Select a property first"} /></SelectTrigger>
+                    <SelectContent>
+                      {buildings.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Floor">
+                  <Select value={selectedFloor ? String(selectedFloor) : undefined} onValueChange={(v) => setSelectedFloor(Number(v))} disabled={!selectedBuilding}>
+                    <SelectTrigger><SelectValue placeholder={selectedBuilding ? "Select a floor..." : "Select a building first"} /></SelectTrigger>
+                    <SelectContent>
+                      {floors.map((f) => <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Unit" required>
+                  <Select value={form.unit ? String(form.unit) : undefined} onValueChange={(v) => set("unit", Number(v))} disabled={!selectedFloor && !form.unit}>
+                    <SelectTrigger><SelectValue placeholder={selectedFloor ? "Select a unit..." : "Select a floor first"} /></SelectTrigger>
+                    <SelectContent>
+                      {units.map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.unit_number} ({u.status})</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </Field>
               </div>
-            </TabsContent>
 
-            <TabsContent value="parties">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="pt-4 border-t border-border">
                 <Field label="Tenant" required>
                   <Select value={form.tenant ? String(form.tenant) : undefined} onValueChange={(v) => set("tenant", Number(v))}>
                     <SelectTrigger><SelectValue placeholder="Select a tenant..." /></SelectTrigger>
@@ -202,15 +253,8 @@ export default function LeaseRegistrationPage() {
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Unit" required>
-                  <Select value={form.unit ? String(form.unit) : undefined} onValueChange={(v) => set("unit", Number(v))}>
-                    <SelectTrigger><SelectValue placeholder="Select a unit..." /></SelectTrigger>
-                    <SelectContent>
-                      {units.map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.unit_number} ({u.status})</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </Field>
               </div>
+
               {isEdit && form.property_name && (
                 <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-border">
                   <ReadOnlyStat label="Property" value={form.property_name} />
@@ -259,12 +303,6 @@ export default function LeaseRegistrationPage() {
                 <Field label="Service Charge">
                   <Input type="number" value={form.service_charge ?? ""} onChange={(e) => set("service_charge", e.target.value)} />
                 </Field>
-                <Field label="Utility Charges">
-                  <Input type="number" value={form.utility_charges ?? ""} onChange={(e) => set("utility_charges", e.target.value)} />
-                </Field>
-                <Field label="Parking Fee">
-                  <Input type="number" value={form.parking_fee ?? ""} onChange={(e) => set("parking_fee", e.target.value)} />
-                </Field>
                 <Field label="Currency">
                   <Input value={form.currency ?? "ETB"} onChange={(e) => set("currency", e.target.value)} />
                 </Field>
@@ -301,11 +339,50 @@ export default function LeaseRegistrationPage() {
               )}
             </TabsContent>
 
+            <TabsContent value="utilities">
+              <p className="text-sm text-muted-foreground mb-3">Charges agreed per utility type, plus parking.</p>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Electricity Charge">
+                  <Input type="number" value={form.electricity_charge ?? ""} onChange={(e) => set("electricity_charge", e.target.value)} />
+                </Field>
+                <Field label="Water Charge">
+                  <Input type="number" value={form.water_charge ?? ""} onChange={(e) => set("water_charge", e.target.value)} />
+                </Field>
+                <Field label="Gas Charge">
+                  <Input type="number" value={form.gas_charge ?? ""} onChange={(e) => set("gas_charge", e.target.value)} />
+                </Field>
+                <Field label="Internet Charge">
+                  <Input type="number" value={form.internet_charge ?? ""} onChange={(e) => set("internet_charge", e.target.value)} />
+                </Field>
+                <Field label="Other Utility Charge">
+                  <Input type="number" value={form.other_utility_charge ?? ""} onChange={(e) => set("other_utility_charge", e.target.value)} />
+                </Field>
+                <Field label="Parking Fee">
+                  <Input type="number" value={form.parking_fee ?? ""} onChange={(e) => set("parking_fee", e.target.value)} />
+                </Field>
+              </div>
+            </TabsContent>
+
             <TabsContent value="billing">
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Invoice Generation Day">
-                  <Input type="number" min={1} max={31} value={form.invoice_generation_day ?? ""} onChange={(e) => set("invoice_generation_day", e.target.value ? Number(e.target.value) : null)} />
+                <Field label="Invoice Generation Term">
+                  <Select value={form.invoice_generation_term_type} onValueChange={(v) => set("invoice_generation_term_type", v as Lease["invoice_generation_term_type"])}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fixed">Fixed day of month</SelectItem>
+                      <SelectItem value="relative">Relative to due date</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </Field>
+                {form.invoice_generation_term_type === "relative" ? (
+                  <Field label="Days Before Due Date">
+                    <Input type="number" value={form.invoice_generation_relative_days ?? ""} onChange={(e) => set("invoice_generation_relative_days", e.target.value ? Number(e.target.value) : null)} />
+                  </Field>
+                ) : (
+                  <Field label="Generation Day of Month">
+                    <Input type="number" min={1} max={31} value={form.invoice_generation_day ?? ""} onChange={(e) => set("invoice_generation_day", e.target.value ? Number(e.target.value) : null)} />
+                  </Field>
+                )}
                 <Field label="Payment Method">
                   <Select value={form.payment_method || undefined} onValueChange={(v) => set("payment_method", v as Lease["payment_method"])}>
                     <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
@@ -333,38 +410,6 @@ export default function LeaseRegistrationPage() {
                     value={`${form.currency ?? "ETB"} ${Number(form.outstanding_balance ?? 0).toLocaleString()}`}
                     danger={Number(form.outstanding_balance ?? 0) > 0}
                   />
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="approval">
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Approval Status">
-                  <Select value={form.approval_status} onValueChange={(v) => set("approval_status", v as Lease["approval_status"])}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="approved">Approved</SelectItem>
-                      <SelectItem value="rejected">Rejected</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field label="Approval Date">
-                  <Input type="date" value={form.approval_date ?? ""} onChange={(e) => set("approval_date", e.target.value)} />
-                </Field>
-                <Field label="Digital Signature Status">
-                  <Select value={form.digital_signature_status} onValueChange={(v) => set("digital_signature_status", v as Lease["digital_signature_status"])}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="not_signed">Not Signed</SelectItem>
-                      <SelectItem value="signed">Signed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </div>
-              {isEdit && form.approved_by_username && (
-                <div className="mt-4 pt-4 border-t border-border">
-                  <ReadOnlyStat label="Approved By" value={form.approved_by_username} />
                 </div>
               )}
             </TabsContent>
@@ -433,14 +478,20 @@ export default function LeaseRegistrationPage() {
           </Tabs>
         </Card>
 
-        <div className="space-y-4">
-          {isEdit && (
+        {isEdit && form.created_by && (
+          <div className="space-y-4">
             <Card className="p-4">
-              <h3 className="text-sm font-medium text-foreground mb-3">Status</h3>
-              <StatusBadge status={form.status ?? "draft"} />
+              <h3 className="text-sm font-medium text-foreground mb-3">Approval</h3>
+              <dl className="text-xs space-y-2">
+                <div className="flex justify-between"><dt className="text-muted-foreground">Status</dt><dd className="capitalize">{form.approval_status}</dd></div>
+                {form.approved_by_username && (
+                  <>
+                    <div className="flex justify-between"><dt className="text-muted-foreground">Approved By</dt><dd>{form.approved_by_username}</dd></div>
+                    <div className="flex justify-between"><dt className="text-muted-foreground">Approval Date</dt><dd className="font-tabular">{form.approval_date}</dd></div>
+                  </>
+                )}
+              </dl>
             </Card>
-          )}
-          {isEdit && form.created_by && (
             <Card className="p-4">
               <h3 className="text-sm font-medium text-foreground mb-3">Audit Information</h3>
               <dl className="text-xs space-y-2">
@@ -450,8 +501,8 @@ export default function LeaseRegistrationPage() {
                 <div className="flex justify-between"><dt className="text-muted-foreground">Last updated</dt><dd className="font-tabular">{form.updated_at ? new Date(form.updated_at).toLocaleDateString() : "—"}</dd></div>
               </dl>
             </Card>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

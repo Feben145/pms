@@ -23,6 +23,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Breadcrumb } from "../../components/Breadcrumb";
+import { StatusBadge } from "@/components/StatusBadge";
 
 type FormState = Partial<Tenant>;
 
@@ -138,6 +139,14 @@ export default function TenantRegistrationPage() {
 
             {/* TAB 1: IDENTITY & PROFILE */}
             <TabsContent value="identity">
+              {isEdit && (
+                <div className="flex items-center gap-2 mb-4">
+                  <StatusBadge status={form.status ?? "prospect"} />
+                  <span className="text-xs text-muted-foreground">
+                    Status advances via the Approve action on the list or detail page, not here.
+                  </span>
+                </div>
+              )}
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <Field label="Tenant Type">
                   <Select value={form.tenant_type} onValueChange={(v) => set("tenant_type", v as Tenant["tenant_type"])}>
@@ -148,27 +157,15 @@ export default function TenantRegistrationPage() {
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Tenant Status">
-                  <Select value={form.status} onValueChange={(v) => set("status", v as Tenant["status"])}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="prospect">Prospect</SelectItem>
-                      <SelectItem value="application_submitted">Application Submitted</SelectItem>
-                      <SelectItem value="kyc_verification">KYC Verification</SelectItem>
-                      <SelectItem value="approved">Approved</SelectItem>
-                      <SelectItem value="lease_signed">Lease Signed</SelectItem>
-                      <SelectItem value="active_tenant">Active Tenant</SelectItem>
-                      <SelectItem value="lease_renewal">Lease Renewal</SelectItem>
-                      <SelectItem value="move_out">Move-Out</SelectItem>
-                      <SelectItem value="former_tenant">Former Tenant</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
                 <Field label="Tenant Code">
                   <Input value={form.tenant_code ?? ""} onChange={(e) => set("tenant_code", e.target.value)} placeholder="TNT-1001" />
                 </Field>
               </div>
-
+              {!isEdit && (
+                <p className="text-xs text-muted-foreground -mt-2 mb-4">
+                  New tenants are always saved as <span className="font-medium">Prospect</span>. An Owner or Property Manager approves them from the list or detail page.
+                </p>
+              )}
               {!isCompany ? (
                 <div className="grid grid-cols-3 gap-4">
                   <Field label="First Name"><Input value={form.first_name ?? ""} onChange={(e) => set("first_name", e.target.value)} placeholder="Abebe" /></Field>

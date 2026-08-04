@@ -55,3 +55,4 @@ class TenantDocumentViewSet(OrgScopedViewSetMixin, viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["tenant"]
     parser_classes = [parsers.MultiPartParser, parsers.FormParser]
+    

@@ -60,3 +60,4 @@ class LeaseDocumentViewSet(OrgScopedViewSetMixin, viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["lease"]
     parser_classes = [parsers.MultiPartParser, parsers.FormParser]
+    
