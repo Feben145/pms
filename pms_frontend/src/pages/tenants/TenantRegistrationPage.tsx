@@ -23,7 +23,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Breadcrumb } from "../../components/Breadcrumb";
-import { StatusBadge } from "@/components/StatusBadge";
+import { StatusBadge } from "../../components/StatusBadge";
 
 type FormState = Partial<Tenant>;
 
@@ -72,7 +72,7 @@ export default function TenantRegistrationPage() {
     try {
       const formData = new FormData();
       (Object.keys(form) as (keyof FormState)[]).forEach((key) => {
-        if (key === "documents") return;
+        if (key === "documents" || key === "status" || key === "approved_by" || key === "approval_date") return;
         const value = form[key];
         if (value === null || value === undefined || value === "") return;
         formData.append(key, String(value));

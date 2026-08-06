@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCollection } from "../../hooks/useCollection";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
+import { hasApprovalPrivilege } from "../../lib/approvals";
 import type { Tenant } from "../../types/models";
 import { PageHeader } from "../../components/PageHeader";
 import { Breadcrumb } from "../../components/Breadcrumb";
@@ -9,13 +11,17 @@ import { StatusBadge } from "../../components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, CheckCircle2 } from "lucide-react";
+import { apiClient } from "../../api/client";
 
 export default function TenantsListPage() {
-  const { items, isLoading, error } = useCollection<Tenant>("/tenants/");
+  const { items, isLoading, error, refetch } = useCollection<Tenant>("/tenants/");
   const navigate = useNavigate();
+  const { user } = useCurrentUser();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  const canApprove = hasApprovalPrivilege(user?.role);
 
   const filtered = items.filter((t) => {
     const matchesSearch =
@@ -26,6 +32,12 @@ export default function TenantsListPage() {
     const matchesStatus = statusFilter === "all" || t.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  async function handleApprove(e: React.MouseEvent, tenant: Tenant) {
+    e.stopPropagation();
+    await apiClient.post(`/tenants/${tenant.id}/approve/`);
+    refetch();
+  }
 
   return (
     <div>
@@ -77,6 +89,15 @@ export default function TenantsListPage() {
           { header: "Current Unit", render: (t) => t.current_unit_number ?? "—" },
           { header: "KYC", render: (t) => (t.kyc_verified ? "Verified" : "Pending") },
           { header: "Status", render: (t) => <StatusBadge status={t.status} /> },
+          {
+            header: "",
+            render: (t) =>
+              canApprove && t.status !== "approved" && t.status !== "active_tenant" && t.status !== "former_tenant" ? (
+                <Button variant="link" size="sm" className="h-auto p-0" onClick={(e) => handleApprove(e, t)}>
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Approve
+                </Button>
+              ) : null,
+          },
         ]}
       />
     </div>

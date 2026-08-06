@@ -35,6 +35,15 @@ class LeaseSerializer(serializers.ModelSerializer):
     tenant_contact_number = serializers.CharField(source="tenant.phone_number", read_only=True)
     tenant_email = serializers.CharField(source="tenant.email", read_only=True)
     tenant_type = serializers.CharField(source="tenant.tenant_type", read_only=True)
+    # Utility metadata belongs to the Unit -- it's a property of the
+    # physical space, not something re-entered per lease. Selecting a
+    # unit in the wizard surfaces this automatically instead.
+    unit_electricity_meter = serializers.CharField(source="unit.electricity_meter_number", read_only=True)
+    unit_water_meter = serializers.CharField(source="unit.water_meter_number", read_only=True)
+    unit_gas_meter = serializers.CharField(source="unit.gas_meter_number", read_only=True)
+    unit_internet_connection = serializers.BooleanField(source="unit.internet_connection", read_only=True)
+    unit_utility_account_number = serializers.CharField(source="unit.utility_account_number", read_only=True)
+    unit_utility_billing_method = serializers.CharField(source="unit.utility_billing_method", read_only=True)
     lease_duration_days = serializers.SerializerMethodField()
     total_monthly_charge = serializers.SerializerMethodField()
     outstanding_balance = serializers.SerializerMethodField()
@@ -51,10 +60,13 @@ class LeaseSerializer(serializers.ModelSerializer):
             "tenant_name", "tenant_contact_number", "tenant_email", "tenant_type",
             "start_date", "end_date", "lease_duration_days", "move_in_date", "move_out_date",
             "renewal_notice_period_days",
-            "monthly_rent", "security_deposit", "service_charge", "utility_charges", "parking_fee",
+            "monthly_rent", "security_deposit", "service_charge", "parking_fee",
+            "unit_electricity_meter", "unit_water_meter", "unit_gas_meter",
+            "unit_internet_connection", "unit_utility_account_number", "unit_utility_billing_method",
             "currency", "billing_frequency", "payment_due_day",
             "rent_escalation_type", "rent_escalation_percent", "total_monthly_charge",
-            "invoice_generation_day", "payment_method", "bank_account",
+            "invoice_generation_term_type", "invoice_generation_day", "invoice_generation_relative_days",
+            "payment_method", "bank_account",
             "late_payment_penalty_percent", "grace_period_days", "outstanding_balance",
             "approval_status", "approved_by", "approved_by_username", "approval_date",
             "digital_signature_status",
@@ -65,7 +77,10 @@ class LeaseSerializer(serializers.ModelSerializer):
             "created_at", "updated_at", "created_by", "updated_by",
             "created_by_username", "updated_by_username",
         ]
-        read_only_fields = ["id", "created_at", "updated_at", "created_by", "updated_by"]
+        read_only_fields = [
+            "id", "created_at", "updated_at", "created_by", "updated_by",
+            "lease_version", "approval_status", "approved_by", "approval_date",
+        ]
 
     def get_lease_id_display(self, obj):
         return f"LEA-{obj.id:04d}" if obj.id else None
@@ -76,7 +91,19 @@ class LeaseSerializer(serializers.ModelSerializer):
         return None
 
     def get_total_monthly_charge(self, obj):
-        return (obj.monthly_rent or 0) + (obj.service_charge or 0) + (obj.utility_charges or 0) + (obj.parking_fee or 0)
+        # Base lease charges stored directly on the lease
+        rent = getattr(obj, "monthly_rent", 0) or 0
+        service = getattr(obj, "service_charge", 0) or 0
+        parking = getattr(obj, "parking_fee", 0) or 0
+        
+        # Utility charges pulled dynamically from the related Unit model
+        # (Change these attribute names if your Unit model uses slightly different field names)
+        unit = getattr(obj, "unit", None)
+        electricity = getattr(unit, "electricity_charge", 0) or 0 if unit else 0
+        water = getattr(unit, "water_charge", 0) or 0 if unit else 0
+        gas = getattr(unit, "gas_charge", 0) or 0 if unit else 0
+
+        return float(rent) + float(service) + float(parking) + float(electricity) + float(water) + float(gas)
 
     def get_outstanding_balance(self, obj):
         from decimal import Decimal
@@ -87,14 +114,33 @@ class LeaseSerializer(serializers.ModelSerializer):
         start = data.get("start_date", getattr(self.instance, "start_date", None))
         end = data.get("end_date", getattr(self.instance, "end_date", None))
         if start and end and end <= start:
-            raise serializers.ValidationError("end_date must be after start_date.")
+            raise serializers.ValidationError({"end_date": "end_date must be after start_date."})
 
-        # Prevent double-booking: a unit can only have one lease in an
-        # "occupying" state at a time. Without this, nothing stopped two
-        # active leases existing on the same unit simultaneously.
+        # --- NEW: Check for duplicate lease_number within the same organization ---
+        lease_number = data.get("lease_number")
+        if lease_number:
+            # Determine the organization (from context request or existing instance)
+            request = self.context.get("request")
+            organization = getattr(self.instance, "organization", None)
+            
+            if not organization and request and hasattr(request, "user"):
+                from common.mixins import get_active_organization
+                organization = get_active_organization(request.user)
+
+            if organization:
+                qs = Lease.objects.filter(organization=organization, lease_number=lease_number)
+                if self.instance:
+                    qs = qs.exclude(pk=self.instance.pk)
+                if qs.exists():
+                    raise serializers.ValidationError({
+                        "lease_number": f"A lease with number '{lease_number}' already exists in this organization."
+                    })
+        # ------------------------------------------------------------------------
+
+        # Prevent double-booking: a unit can only have one lease in an "occupying" state
         unit = data.get("unit", getattr(self.instance, "unit", None))
-        status = data.get("status", getattr(self.instance, "status", None))
-        if unit and status in OCCUPYING_STATUSES:
+        lease_status = data.get("status", getattr(self.instance, "status", None))
+        if unit and lease_status in OCCUPYING_STATUSES:
             conflicting = Lease.objects.filter(
                 unit=unit, status__in=OCCUPYING_STATUSES
             ).exclude(pk=getattr(self.instance, "pk", None))
@@ -106,6 +152,10 @@ class LeaseSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
+        # Status is never taken from the create form -- every lease
+        # starts as Draft. It only moves forward through workflow
+        # actions (approve), never by directly setting the field.
+        validated_data["status"] = Lease.Status.DRAFT
         lease = super().create(validated_data)
         self._sync_unit_status(lease)
         return lease

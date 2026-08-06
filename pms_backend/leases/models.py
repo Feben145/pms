@@ -99,12 +99,8 @@ class Lease(OrgScopedModel):
     rent_escalation_type = models.CharField(max_length=16, choices=RentEscalationType.choices, blank=True)
     rent_escalation_percent = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
-    # -- Utilities (each type billed separately, agreed at lease level) --
-    electricity_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    water_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    gas_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    internet_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    other_utility_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # -- Parking (utility-adjacent lease term; actual utility metadata
+    # comes from the Unit, not duplicated here -- see LeaseSerializer) --
     parking_fee = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
 
     # -- Billing & Payment --
@@ -178,3 +174,4 @@ class LeaseDocument(OrgScopedModel):
 
     def __str__(self):
         return self.name
+        
