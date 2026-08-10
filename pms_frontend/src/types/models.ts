@@ -367,12 +367,13 @@ export interface Lease {
   monthly_rent: string;
   security_deposit: string;
   service_charge: string | null;
-  electricity_charge: string | null;
-  water_charge: string | null;
-  gas_charge: string | null;
-  internet_charge: string | null;
-  other_utility_charge: string | null;
   parking_fee: string | null;
+  unit_electricity_meter: string;
+  unit_water_meter: string;
+  unit_gas_meter: string;
+  unit_internet_connection: boolean;
+  unit_utility_account_number: string;
+  unit_utility_billing_method: "metered" | "fixed_rate" | "included" | "";
   currency: string;
   billing_frequency: "monthly" | "quarterly" | "annually";
   payment_due_day: number;

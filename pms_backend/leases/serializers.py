@@ -91,19 +91,7 @@ class LeaseSerializer(serializers.ModelSerializer):
         return None
 
     def get_total_monthly_charge(self, obj):
-        # Base lease charges stored directly on the lease
-        rent = getattr(obj, "monthly_rent", 0) or 0
-        service = getattr(obj, "service_charge", 0) or 0
-        parking = getattr(obj, "parking_fee", 0) or 0
-        
-        # Utility charges pulled dynamically from the related Unit model
-        # (Change these attribute names if your Unit model uses slightly different field names)
-        unit = getattr(obj, "unit", None)
-        electricity = getattr(unit, "electricity_charge", 0) or 0 if unit else 0
-        water = getattr(unit, "water_charge", 0) or 0 if unit else 0
-        gas = getattr(unit, "gas_charge", 0) or 0 if unit else 0
-
-        return float(rent) + float(service) + float(parking) + float(electricity) + float(water) + float(gas)
+        return (obj.monthly_rent or 0) + (obj.service_charge or 0) + (obj.parking_fee or 0)
 
     def get_outstanding_balance(self, obj):
         from decimal import Decimal
@@ -114,41 +102,25 @@ class LeaseSerializer(serializers.ModelSerializer):
         start = data.get("start_date", getattr(self.instance, "start_date", None))
         end = data.get("end_date", getattr(self.instance, "end_date", None))
         if start and end and end <= start:
-            raise serializers.ValidationError({"end_date": "end_date must be after start_date."})
+            raise serializers.ValidationError({"end_date": "End date must be after the start date."})
 
-        # --- NEW: Check for duplicate lease_number within the same organization ---
-        lease_number = data.get("lease_number")
-        if lease_number:
-            # Determine the organization (from context request or existing instance)
-            request = self.context.get("request")
-            organization = getattr(self.instance, "organization", None)
-            
-            if not organization and request and hasattr(request, "user"):
-                from common.mixins import get_active_organization
-                organization = get_active_organization(request.user)
-
-            if organization:
-                qs = Lease.objects.filter(organization=organization, lease_number=lease_number)
-                if self.instance:
-                    qs = qs.exclude(pk=self.instance.pk)
-                if qs.exists():
-                    raise serializers.ValidationError({
-                        "lease_number": f"A lease with number '{lease_number}' already exists in this organization."
-                    })
-        # ------------------------------------------------------------------------
-
-        # Prevent double-booking: a unit can only have one lease in an "occupying" state
+        # Prevent double-booking: a unit that already has a lease in an
+        # "occupying" state (active/renewal_pending) can't have a
+        # SECOND lease attached at all -- regardless of what status
+        # that second lease is being saved as. Every new lease starts
+        # as Draft, so checking only "is the incoming status occupying"
+        # would never catch this (a Draft never is) -- the real
+        # question is whether the UNIT is already spoken for.
         unit = data.get("unit", getattr(self.instance, "unit", None))
-        lease_status = data.get("status", getattr(self.instance, "status", None))
-        if unit and lease_status in OCCUPYING_STATUSES:
+        if unit:
             conflicting = Lease.objects.filter(
                 unit=unit, status__in=OCCUPYING_STATUSES
             ).exclude(pk=getattr(self.instance, "pk", None))
             if conflicting.exists():
-                raise serializers.ValidationError(
-                    "This unit already has an active lease. Terminate or "
-                    "let the existing lease expire before assigning a new one."
-                )
+                raise serializers.ValidationError({
+                    "unit": "This unit already has an active lease. Terminate or "
+                            "let the existing lease expire before assigning a new one."
+                })
         return data
 
     def create(self, validated_data):

@@ -342,24 +342,6 @@ export default function LeaseRegistrationPage() {
             <TabsContent value="utilities">
               <p className="text-sm text-muted-foreground mb-3">Charges agreed per utility type, plus parking.</p>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Electricity Charge">
-                  <Input type="number" value={form.electricity_charge ?? ""} onChange={(e) => set("electricity_charge", e.target.value)} />
-                </Field>
-                <Field label="Water Charge">
-                  <Input type="number" value={form.water_charge ?? ""} onChange={(e) => set("water_charge", e.target.value)} />
-                </Field>
-                <Field label="Gas Charge">
-                  <Input type="number" value={form.gas_charge ?? ""} onChange={(e) => set("gas_charge", e.target.value)} />
-                </Field>
-                <Field label="Internet Charge">
-                  <Input type="number" value={form.internet_charge ?? ""} onChange={(e) => set("internet_charge", e.target.value)} />
-                </Field>
-                <Field label="Other Utility Charge">
-                  <Input type="number" value={form.other_utility_charge ?? ""} onChange={(e) => set("other_utility_charge", e.target.value)} />
-                </Field>
-                <Field label="Parking Fee">
-                  <Input type="number" value={form.parking_fee ?? ""} onChange={(e) => set("parking_fee", e.target.value)} />
-                </Field>
               </div>
             </TabsContent>
 
