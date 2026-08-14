@@ -4,6 +4,7 @@ import { Upload, FileText, X, Loader2 } from "lucide-react";
 import { apiClient } from "../../api/client";
 import type { Unit, UnitDocument, Floor } from "../../types/models";
 import { useCollection } from "../../hooks/useCollection";
+import { parseApiError } from "../../lib/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -88,8 +89,7 @@ export default function UnitRegistrationPage() {
 
       navigate(`/units`);
     } catch (err: any) {
-      const detail = err?.response?.data;
-      setError(typeof detail === "object" ? JSON.stringify(detail) : "Could not save unit.");
+      setError(parseApiError(err, "Could not save unit."));
     } finally {
       setIsSubmitting(false);
     }
@@ -111,7 +111,11 @@ export default function UnitRegistrationPage() {
         </div>
       </div>
 
-      {error && <p className="text-sm text-danger bg-[var(--color-danger-soft)] border border-danger/30 rounded-md px-3 py-2 mb-4">{error}</p>}
+      {error && (
+        <div className="text-sm text-danger bg-[var(--color-danger-soft)] border border-danger/30 rounded-md px-3 py-2 mb-4 whitespace-pre-line">
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
         <Card className="p-5">
@@ -283,7 +287,11 @@ export default function UnitRegistrationPage() {
             </TabsContent>
 
             <TabsContent value="utilities">
-              <div className="grid grid-cols-2 gap-4">
+              <p className="text-sm text-muted-foreground mb-3">
+                Meter/account references identify the physical connections. Charges below are the unit's standard monthly rates — a Lease reads these automatically once this unit is selected, rather than having its own separate utility fields.
+              </p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Meter References</p>
+              <div className="grid grid-cols-2 gap-4 mb-4">
                 <Field label="Electricity Meter Number">
                   <Input value={form.electricity_meter_number ?? ""} onChange={(e) => set("electricity_meter_number", e.target.value)} />
                 </Field>
@@ -297,8 +305,27 @@ export default function UnitRegistrationPage() {
                   <Input value={form.utility_account_number ?? ""} onChange={(e) => set("utility_account_number", e.target.value)} />
                 </Field>
               </div>
-              <div className="mt-4">
+              <div className="mb-4">
                 <ToggleField label="Internet Connection" checked={!!form.internet_connection} onChange={(v) => set("internet_connection", v)} />
+              </div>
+
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 pt-2 border-t border-border">Standard Monthly Charges</p>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Electricity Charge">
+                  <Input type="number" value={(form as any).electricity_charge ?? ""} onChange={(e) => set(("electricity_charge" as any), parseFloat(e.target.value))} />
+                </Field>
+                <Field label="Water Charge">
+                  <Input type="number" value={(form as any).water_charge ?? ""} onChange={(e) => set(("water_charge" as any), parseFloat(e.target.value))} />
+                </Field>
+                <Field label="Gas Charge">
+                  <Input type="number" value={(form as any).gas_charge ?? ""} onChange={(e) => set(("gas_charge" as any), parseFloat(e.target.value))} />
+                </Field>
+                <Field label="Internet Charge">
+                  <Input type="number" value={(form as any).internet_charge ?? ""} onChange={(e) => set(("internet_charge" as any), parseFloat(e.target.value))} />
+                </Field>
+                <Field label="Other Utility Charge">
+                  <Input type="number" value={(form as any).other_utility_charge ?? ""} onChange={(e) => set(("other_utility_charge" as any), parseFloat(e.target.value))} />
+                </Field>
               </div>
             </TabsContent>
 

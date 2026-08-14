@@ -225,6 +225,7 @@ class UnitSerializer(serializers.ModelSerializer):
             "current_tenant_id", "current_tenant_name", "current_lease_id", "lease_start_date", "lease_end_date",
             "electricity_meter_number", "water_meter_number", "gas_meter_number",
             "internet_connection", "utility_account_number",
+            "electricity_charge", "water_charge", "gas_charge", "internet_charge", "other_utility_charge",
             "maintenance_status", "last_inspection_date", "next_inspection_date", "warranty_expiry",
             "air_conditioning", "heating", "smart_lock", "smoke_detector", "cctv_coverage", "internet_ready",
             "documents",
@@ -261,3 +262,4 @@ class UnitSerializer(serializers.ModelSerializer):
     def get_lease_end_date(self, obj):
         lease = self._active_lease(obj)
         return lease.end_date if lease else None
+        

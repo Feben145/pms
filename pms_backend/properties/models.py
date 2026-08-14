@@ -440,6 +440,15 @@ class Unit(OrgScopedModel):
     gas_meter_number = models.CharField(max_length=64, blank=True)
     internet_connection = models.BooleanField(default=False)
     utility_account_number = models.CharField(max_length=64, blank=True)
+    # Standard monthly utility charges configured for this unit -- the
+    # actual dollar amounts, distinct from the meter/account metadata
+    # above. A Lease reads these as read-only defaults rather than
+    # having its own separate, easily-out-of-sync utility fields.
+    electricity_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    water_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    gas_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    internet_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    other_utility_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     # -- Maintenance --
     maintenance_status = models.CharField(max_length=16, choices=Condition.choices, blank=True)
