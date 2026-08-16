@@ -101,7 +101,16 @@ class Property(OrgScopedModel):
     number_of_buildings = models.PositiveIntegerField(null=True, blank=True)
     number_of_floors = models.PositiveIntegerField(null=True, blank=True)
     number_of_units = models.PositiveIntegerField(null=True, blank=True)
-    parking_capacity = models.PositiveIntegerField(null=True, blank=True, help_text="Parking spaces.")
+
+    #parking details
+    
+    parking_capacity = models.PositiveIntegerField(null=True, blank=True, help_text="Total parking spaces available across the property.")
+    covered_parking_spaces = models.PositiveIntegerField(null=True, blank=True, help_text="Number of covered parking spaces.")
+    open_parking_spaces = models.PositiveIntegerField(
+    null=True, blank=True, help_text="Number of open/outdoor parking spaces.")
+    visitor_parking_spaces = models.PositiveIntegerField(null=True, blank=True, help_text="Parking spaces reserved for visitors.")
+    accessible_parking_spaces = models.PositiveIntegerField(null=True, blank=True, help_text="Accessible parking spaces.")
+    parking_notes = models.TextField(blank=True,help_text="Additional parking information, restrictions, or arrangements.")
     property_condition = models.CharField(
         max_length=16, choices=Condition.choices, blank=True, help_text="Maintenance status.",
     )

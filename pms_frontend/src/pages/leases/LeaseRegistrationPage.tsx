@@ -51,6 +51,7 @@ export default function LeaseRegistrationPage() {
   const [selectedProperty, setSelectedProperty] = useState<number | null>(null);
   const [selectedBuilding, setSelectedBuilding] = useState<number | null>(null);
   const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
+  const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
 
   const { items: properties } = useCollection<Property>("/properties/");
   const { items: buildings } = useCollection<Building>(
@@ -67,6 +68,22 @@ export default function LeaseRegistrationPage() {
   );
   const { items: tenants } = useCollection<Tenant>("/tenants/");
 
+
+  useEffect(() => {
+  if (!form.unit) {
+    setSelectedUnit(null);
+    return;
+  }
+
+  apiClient
+    .get<Unit>(`/properties/units/${form.unit}/`)
+    .then(({ data }) => {
+      setSelectedUnit(data);
+    })
+    .catch(() => {
+      setSelectedUnit(null);
+    });
+}, [form.unit]);
   useEffect(() => {
     if (!isEdit) {
       const unitParam = searchParams.get("unit");
@@ -142,6 +159,12 @@ export default function LeaseRegistrationPage() {
 
   if (isLoading) return <div className="py-16 text-center text-sm text-muted-foreground">Loading...</div>;
 
+ function formatLabel(value: string): string {
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
   return (
     <div>
       <Breadcrumb items={[{ label: "Tenant & Lease" }, { label: "Lease Management", to: "/leases" }, { label: isEdit ? "Edit" : "New" }]} />
@@ -183,7 +206,7 @@ export default function LeaseRegistrationPage() {
               <TabsTrigger value="parties">Tenant & Unit</TabsTrigger>
               <TabsTrigger value="dates">Dates & Terms</TabsTrigger>
               <TabsTrigger value="financial">Financial</TabsTrigger>
-              <TabsTrigger value="utilities">Utilities</TabsTrigger>
+              <TabsTrigger value="utilities">Utilities & Charges</TabsTrigger>
               <TabsTrigger value="billing">Billing & Payment</TabsTrigger>
               <TabsTrigger value="conditions">Terms & Conditions</TabsTrigger>
               <TabsTrigger value="documents">Documents</TabsTrigger>
@@ -340,10 +363,158 @@ export default function LeaseRegistrationPage() {
             </TabsContent>
 
             <TabsContent value="utilities">
-              <p className="text-sm text-muted-foreground mb-3">Charges agreed per utility type, plus parking.</p>
-              <div className="grid grid-cols-2 gap-4">
-              </div>
-            </TabsContent>
+  <div className="space-y-6">
+
+    {/* Unit Utility Configuration */}
+    <div>
+      <div className="mb-3">
+        <p className="text-sm font-medium text-foreground">
+          Unit Utility Configuration
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Physical utility configuration inherited from the selected unit.
+          These values are maintained on the Unit and cannot be changed here.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <ReadOnlyStat
+          label="Electricity Meter"
+          value={selectedUnit?.electricity_meter_number || "—"}
+        />
+
+        <ReadOnlyStat
+          label="Water Meter"
+          value={selectedUnit?.water_meter_number || "—"}
+        />
+
+        <ReadOnlyStat
+          label="Gas Meter"
+          value={selectedUnit?.gas_meter_number || "—"}
+        />
+
+        <ReadOnlyStat
+          label="Utility Account"
+          value={selectedUnit?.utility_account_number || "—"}
+        />
+
+        <ReadOnlyStat
+          label="Billing Method"
+          value={
+            selectedUnit?.utility_billing_method
+              ? formatLabel(selectedUnit.utility_billing_method)
+              : "—"
+          }
+        />
+
+        <ReadOnlyStat
+          label="Internet Connection"
+          value={selectedUnit?.internet_connection ? "Available" : "Not Available"}
+        />
+      </div>
+    </div>
+
+    {/* Lease Utility Price Setup */}
+    <div className="pt-5 border-t border-border">
+      <div className="mb-3">
+        <p className="text-sm font-medium text-foreground">
+          Lease Utility Price Setup
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Enter the charges agreed with this tenant for this lease.
+          These values are independent of the unit configuration.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Electricity Charge">
+          <Input
+            type="number"
+            min="0"
+            value={form.electricity_charge ?? ""}
+            onChange={(e) =>
+              set(
+                "electricity_charge",
+                e.target.value ? Number(e.target.value) : null
+              )
+            }
+          />
+        </Field>
+
+        <Field label="Water Charge">
+          <Input
+            type="number"
+            min="0"
+            value={form.water_charge ?? ""}
+            onChange={(e) =>
+              set(
+                "water_charge",
+                e.target.value ? Number(e.target.value) : null
+              )
+            }
+          />
+        </Field>
+
+        <Field label="Gas Charge">
+          <Input
+            type="number"
+            min="0"
+            value={form.gas_charge ?? ""}
+            onChange={(e) =>
+              set(
+                "gas_charge",
+                e.target.value ? Number(e.target.value) : null
+              )
+            }
+          />
+        </Field>
+
+        <Field label="Internet Charge">
+          <Input
+            type="number"
+            min="0"
+            value={form.internet_charge ?? ""}
+            onChange={(e) =>
+              set(
+                "internet_charge",
+                e.target.value ? Number(e.target.value) : null
+              )
+            }
+          />
+        </Field>
+
+        <Field label="Other Utility Charge">
+          <Input
+            type="number"
+            min="0"
+            value={form.other_utility_charge ?? ""}
+            onChange={(e) =>
+              set(
+                "other_utility_charge",
+                e.target.value ? Number(e.target.value) : null
+              )
+            }
+          />
+        </Field>
+
+        <Field label="Parking Fee">
+          <Input
+            type="number"
+            min="0"
+            value={form.parking_fee ?? ""}
+            onChange={(e) =>
+              set(
+                "parking_fee",
+                e.target.value ? Number(e.target.value) : null
+              )
+            }
+          />
+        </Field>
+      </div>
+    </div>
+
+  </div>
+</TabsContent>
 
             <TabsContent value="billing">
               <div className="grid grid-cols-2 gap-4">

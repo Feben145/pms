@@ -287,47 +287,93 @@ export default function UnitRegistrationPage() {
             </TabsContent>
 
             <TabsContent value="utilities">
-              <p className="text-sm text-muted-foreground mb-3">
-                Meter/account references identify the physical connections. Charges below are the unit's standard monthly rates — a Lease reads these automatically once this unit is selected, rather than having its own separate utility fields.
-              </p>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Meter References</p>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <Field label="Electricity Meter Number">
-                  <Input value={form.electricity_meter_number ?? ""} onChange={(e) => set("electricity_meter_number", e.target.value)} />
-                </Field>
-                <Field label="Water Meter Number">
-                  <Input value={form.water_meter_number ?? ""} onChange={(e) => set("water_meter_number", e.target.value)} />
-                </Field>
-                <Field label="Gas Meter Number">
-                  <Input value={form.gas_meter_number ?? ""} onChange={(e) => set("gas_meter_number", e.target.value)} />
-                </Field>
-                <Field label="Utility Account Number">
-                  <Input value={form.utility_account_number ?? ""} onChange={(e) => set("utility_account_number", e.target.value)} />
-                </Field>
-              </div>
-              <div className="mb-4">
-                <ToggleField label="Internet Connection" checked={!!form.internet_connection} onChange={(v) => set("internet_connection", v)} />
-              </div>
+  <p className="text-sm text-muted-foreground mb-4">
+    Utility configuration and connection references for this physical unit.
+    These values are maintained at the unit level and are read-only when
+    referenced by a lease.
+  </p>
 
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 pt-2 border-t border-border">Standard Monthly Charges</p>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Electricity Charge">
-                  <Input type="number" value={(form as any).electricity_charge ?? ""} onChange={(e) => set(("electricity_charge" as any), parseFloat(e.target.value))} />
-                </Field>
-                <Field label="Water Charge">
-                  <Input type="number" value={(form as any).water_charge ?? ""} onChange={(e) => set(("water_charge" as any), parseFloat(e.target.value))} />
-                </Field>
-                <Field label="Gas Charge">
-                  <Input type="number" value={(form as any).gas_charge ?? ""} onChange={(e) => set(("gas_charge" as any), parseFloat(e.target.value))} />
-                </Field>
-                <Field label="Internet Charge">
-                  <Input type="number" value={(form as any).internet_charge ?? ""} onChange={(e) => set(("internet_charge" as any), parseFloat(e.target.value))} />
-                </Field>
-                <Field label="Other Utility Charge">
-                  <Input type="number" value={(form as any).other_utility_charge ?? ""} onChange={(e) => set(("other_utility_charge" as any), parseFloat(e.target.value))} />
-                </Field>
-              </div>
-            </TabsContent>
+  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+    Meter & Account References
+  </p>
+
+  <div className="grid grid-cols-2 gap-4 mb-4">
+    <Field label="Electricity Meter Number">
+      <Input
+        value={form.electricity_meter_number ?? ""}
+        onChange={(e) =>
+          set("electricity_meter_number", e.target.value)
+        }
+      />
+    </Field>
+
+    <Field label="Water Meter Number">
+      <Input
+        value={form.water_meter_number ?? ""}
+        onChange={(e) =>
+          set("water_meter_number", e.target.value)
+        }
+      />
+    </Field>
+
+    <Field label="Gas Meter Number">
+      <Input
+        value={form.gas_meter_number ?? ""}
+        onChange={(e) =>
+          set("gas_meter_number", e.target.value)
+        }
+      />
+    </Field>
+
+    <Field label="Utility Account Number">
+      <Input
+        value={form.utility_account_number ?? ""}
+        onChange={(e) =>
+          set("utility_account_number", e.target.value)
+        }
+      />
+    </Field>
+  </div>
+
+  <div className="grid grid-cols-2 gap-4">
+    <Field label="Utility Billing Method">
+      <Select
+        value={form.utility_billing_method || undefined}
+        onValueChange={(v) =>
+          set(
+            "utility_billing_method",
+            v as Unit["utility_billing_method"]
+          )
+        }
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Select..." />
+        </SelectTrigger>
+
+        <SelectContent>
+          <SelectItem value="metered">Metered</SelectItem>
+          <SelectItem value="fixed_rate">Fixed Rate</SelectItem>
+          <SelectItem value="included">Included</SelectItem>
+        </SelectContent>
+      </Select>
+    </Field>
+
+    <Field label="Currency">
+      <Input
+        value={form.currency ?? "ETB"}
+        onChange={(e) => set("currency", e.target.value)}
+      />
+    </Field>
+  </div>
+
+  <div className="mt-4 pt-4 border-t border-border">
+    <ToggleField
+      label="Internet Connection"
+      checked={!!form.internet_connection}
+      onChange={(v) => set("internet_connection", v)}
+    />
+  </div>
+</TabsContent>
 
             <TabsContent value="maintenance">
               <div className="grid grid-cols-2 gap-4">

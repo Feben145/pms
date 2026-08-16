@@ -249,6 +249,8 @@ export interface Unit {
   updated_by: number | null;
   created_by_username: string | null;
   updated_by_username: string | null;
+
+  
 }
 
 export interface UnitDocument {
@@ -337,7 +339,7 @@ export interface TenantDocument {
 }
 
 export interface Lease {
-  id: number;
+   id: number;
   lease_id_display: string;
   unit: number;
   tenant: number;
@@ -353,7 +355,7 @@ export interface Lease {
   building_id: number;
   building_name: string;
   floor_id: number;
-  unit_number: string;
+  //unit_number: string;
   tenant_name: string;
   tenant_contact_number: string;
   tenant_email: string;
@@ -364,15 +366,21 @@ export interface Lease {
   move_in_date: string | null;
   move_out_date: string | null;
   renewal_notice_period_days: number | null;
-  monthly_rent: string;
-  security_deposit: string;
-  service_charge: string | null;
-  parking_fee: string | null;
+ 
+  // Lease pricing
+monthly_rent: number | string;
+security_deposit: number | string;
+service_charge?: number | string | null;
+parking_fee?: number | string | null;
+
+electricity_charge?: number | string | null;
+water_charge?: number | string | null;
+gas_charge?: number | string | null;
+internet_charge?: number | string | null;
+other_utility_charge?: number | string | null;
   unit_electricity_meter: string;
   unit_water_meter: string;
   unit_gas_meter: string;
-  unit_internet_connection: boolean;
-  unit_utility_account_number: string;
   unit_utility_billing_method: "metered" | "fixed_rate" | "included" | "";
   currency: string;
   billing_frequency: "monthly" | "quarterly" | "annually";
@@ -408,6 +416,34 @@ export interface Lease {
   updated_by: number | null;
   created_by_username: string | null;
   updated_by_username: string | null;
+
+  unit_number?: string;
+unit_name?: string;
+unit_type?: string;
+unit_category?: string;
+usage_type?: string;
+
+unit_area_sqm?: number | string | null;
+unit_rentable_area_sqm?: number | string | null;
+
+unit_number_of_bedrooms?: number | null;
+unit_number_of_bathrooms?: number | null;
+
+unit_parking_space?: string;
+unit_storage_room?: string;
+unit_furnished?: boolean;
+
+unit_electricity_meter_number?: string;
+unit_water_meter_number?: string;
+unit_gas_meter_number?: string;
+unit_utility_account_number?: string;
+unit_internet_connection?: boolean;
+
+unit_electricity_charge?: number | string | null;
+unit_water_charge?: number | string | null;
+unit_gas_charge?: number | string | null;
+unit_internet_charge?: number | string | null;
+unit_other_utility_charge?: number | string | null;
 }
 
 export interface LeaseDocument {

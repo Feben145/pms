@@ -1,3 +1,4 @@
+#pms_backend/common/permissions.py
 """
 Shared role-based permission checks, used by workflow actions (e.g.
 "approve a lease", "approve a tenant") that must be restricted to
@@ -11,6 +12,7 @@ from rest_framework.permissions import BasePermission
 # whole point of an approval workflow: the person who submits isn't
 # the person who signs off.
 APPROVAL_ROLES = {"owner", "property_manager"}
+
 
 
 def user_has_approval_privilege(user, organization):

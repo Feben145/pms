@@ -44,6 +44,7 @@ class LeaseSerializer(serializers.ModelSerializer):
     unit_internet_connection = serializers.BooleanField(source="unit.internet_connection", read_only=True)
     unit_utility_account_number = serializers.CharField(source="unit.utility_account_number", read_only=True)
     unit_utility_billing_method = serializers.CharField(source="unit.utility_billing_method", read_only=True)
+    unit_parking_space = serializers.CharField(source="unit.parking_space", read_only=True)
     lease_duration_days = serializers.SerializerMethodField()
     total_monthly_charge = serializers.SerializerMethodField()
     outstanding_balance = serializers.SerializerMethodField()
@@ -62,7 +63,7 @@ class LeaseSerializer(serializers.ModelSerializer):
             "renewal_notice_period_days",
             "monthly_rent", "security_deposit", "service_charge", "parking_fee",
             "unit_electricity_meter", "unit_water_meter", "unit_gas_meter",
-            "unit_internet_connection", "unit_utility_account_number", "unit_utility_billing_method",
+            "unit_internet_connection", "unit_utility_account_number", "unit_utility_billing_method", "unit_parking_space",
             "currency", "billing_frequency", "payment_due_day",
             "rent_escalation_type", "rent_escalation_percent", "total_monthly_charge",
             "invoice_generation_term_type", "invoice_generation_day", "invoice_generation_relative_days",
