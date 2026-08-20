@@ -206,6 +206,7 @@ class Invoice(OrgScopedModel):
 
     rental_account = models.ForeignKey(
         RentalAccount,
+        
         on_delete=models.PROTECT,
         related_name="invoices",
     )    
