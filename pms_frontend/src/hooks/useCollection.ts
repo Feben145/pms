@@ -19,7 +19,10 @@ interface Paginated<T> {
   results: T[];
 }
 
-export function useCollection<T>(endpoint: string, params?: Record<string, string | number>) {
+export function useCollection<T>(
+  endpoint: string,
+  params?: Record<string, string | number>
+) {
   const [items, setItems] = useState<T[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,15 +32,31 @@ export function useCollection<T>(endpoint: string, params?: Record<string, strin
   const refetch = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+
     try {
-      const { data } = await apiClient.get<Paginated<T> | T[]>(endpoint, { params });
-      setItems(Array.isArray(data) ? data : data.results);
-    } catch {
+      const { data } = await apiClient.get<Paginated<T> | T[]>(
+        endpoint,
+        { params }
+      );
+
+      if (Array.isArray(data)) {
+        setItems(data);
+      } else if (data && Array.isArray(data.results)) {
+        setItems(data.results);
+      } else {
+        console.warn(
+          `Unexpected collection response from ${endpoint}:`,
+          data
+        );
+        setItems([]);
+      }
+    } catch (err) {
+      console.error(`Failed to load ${endpoint}:`, err);
+      setItems([]);
       setError("Could not load data. Please try again.");
     } finally {
       setIsLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endpoint, paramString]);
 
   useEffect(() => {
@@ -51,10 +70,26 @@ export function useCollection<T>(endpoint: string, params?: Record<string, strin
   }
 
   async function update(id: number | string, payload: Partial<T>) {
-    const { data } = await apiClient.patch<T>(`${endpoint}${id}/`, payload);
-    setItems((prev) => prev.map((item) => ((item as any).id === id ? data : item)));
+    const { data } = await apiClient.patch<T>(
+      `${endpoint}${id}/`,
+      payload
+    );
+
+    setItems((prev) =>
+      prev.map((item) =>
+        (item as any).id === id ? data : item
+      )
+    );
+
     return data;
   }
 
-  return { items, isLoading, error, refetch, create, update };
+  return {
+    items,
+    isLoading,
+    error,
+    refetch,
+    create,
+    update,
+  };
 }

@@ -1,3 +1,4 @@
+//src/App.tsx
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { RequireAuth } from "./auth/RequireAuth";
@@ -22,8 +23,11 @@ import TenantDetailPage from "./pages/tenants/TenantDetailPage";
 import LeasesListPage from "./pages/leases/LeasesListPage";
 import LeaseRegistrationPage from "./pages/leases/LeaseRegistrationPage";
 import LeaseDetailPage from "./pages/leases/LeaseDetailPage";
-import InvoicesListPage from "./pages/rentals/InvoicesListPage";
+//import InvoicesListPage from "./pages/rentals/InvoicesListPage";
 import ComingSoonPage from "./pages/misc/ComingSoonPage";
+import RentalListPage from "./pages/rentals/RentalListPage";
+import RentalRegistrationPage from "./pages/rentals/RentalRegistrationPage";
+import RentalDetailPage from "./pages/rentals/RentalDetailPage";
 
 export default function App() {
   return (
@@ -65,7 +69,11 @@ export default function App() {
             <Route path="leases/new" element={<LeaseRegistrationPage />} />
             <Route path="leases/:leaseId/edit" element={<LeaseRegistrationPage />} />
             <Route path="leases/:leaseId" element={<LeaseDetailPage />} />
-            <Route path="invoices" element={<InvoicesListPage />} />
+            <Route path="rentals" element={<RentalListPage />} />
+            <Route path="rentals/new" element={<RentalRegistrationPage />} />
+            <Route path="rentals/:rentalId" element={<RentalDetailPage />} />
+            <Route path="rentals/:rentalId/edit" element={<RentalRegistrationPage />} />
+            {/* <Route path="invoices" element={<InvoicesListPage />} /> */}
             <Route path="coming-soon/:slug" element={<ComingSoonPage />} />
           </Route>
         </Routes>

@@ -21,7 +21,8 @@ export default function DashboardPage() {
   const { items: units } = useCollection<Unit>("/properties/units/");
   const { items: tenants } = useCollection<Tenant>("/tenants/");
   const { items: leases } = useCollection<Lease>("/leases/");
-  const { items: invoices } = useCollection<Invoice>("/rentals/");
+  
+  const { items: invoices } = useCollection<Invoice>("/rentals/invoices/");
 
   const countByStatus = (status: Unit["status"]) => units.filter((u) => u.status === status).length;
   const leasedUnits = countByStatus("leased");

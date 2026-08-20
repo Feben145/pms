@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from properties.models import Unit
 from .models import Lease, LeaseDocument
+from decimal import Decimal
 
 # Lease statuses that mean "this unit is actually occupied by this
 # lease" -- used both to block double-booking a unit and to decide
@@ -95,9 +96,12 @@ class LeaseSerializer(serializers.ModelSerializer):
         return (obj.monthly_rent or 0) + (obj.service_charge or 0) + (obj.parking_fee or 0)
 
     def get_outstanding_balance(self, obj):
-        from decimal import Decimal
-        invoices = obj.invoices.exclude(status="cancelled")
-        return sum((inv.outstanding_balance for inv in invoices), Decimal("0"))
+        rental_account = getattr(obj, "rental_account", None)
+
+        if rental_account is None:
+            return Decimal("0.00")
+
+        return rental_account.outstanding_balance
 
     def validate(self, data):
         start = data.get("start_date", getattr(self.instance, "start_date", None))
@@ -162,3 +166,4 @@ class LeaseSerializer(serializers.ModelSerializer):
         if unit.status != new_status:
             unit.status = new_status
             unit.save(update_fields=["status", "updated_at"])
+            

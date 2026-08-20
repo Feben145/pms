@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from .models import Tenant, TenantDocument
+from rentals.models import Invoice
+from decimal import Decimal
 
 
 class TenantDocumentSerializer(serializers.ModelSerializer):
@@ -131,8 +133,16 @@ class TenantSerializer(serializers.ModelSerializer):
         lease = self._current_lease(obj)
         return lease.security_deposit if lease else None
 
+    
     def get_outstanding_balance(self, obj):
-        from decimal import Decimal
-        from rentals.models import Invoice
-        invoices = Invoice.objects.filter(lease__tenant=obj).exclude(status="cancelled")
-        return sum((inv.outstanding_balance for inv in invoices), Decimal("0"))
+        return sum(
+            (
+                invoice.outstanding_balance
+                for invoice in Invoice.objects.filter(
+                rental_account__lease__tenant=obj
+                ).exclude(
+                    status=Invoice.Status.CANCELLED
+                )
+            ),
+            Decimal("0.00"),
+        )

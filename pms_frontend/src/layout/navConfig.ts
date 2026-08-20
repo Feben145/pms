@@ -46,10 +46,11 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   
   {
-    group: "Rental Management",
+    group: "Rental Management ",
     items: [
-      { label: "Rent Invoice", icon: Receipt, to: "/invoices" },
-      //{ label: "Rent Collection", icon: Wallet, comingSoon: "/coming-soon/rent-collection" },
+      { label: "Rentals", icon: Receipt, to: "/rentals" },
+      //{ label: "Rental Management", icon: CreditCard, to: "/rentals" },
+      
       //{ label: "Arrears Management", icon: TrendingDown, comingSoon: "/coming-soon/arrears" },
     ],
   },

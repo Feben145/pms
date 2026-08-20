@@ -486,3 +486,162 @@ export interface CurrentUser {
   organization: { id: number; name: string };
   role: string;
 }
+
+
+
+
+export interface RentalAccount {
+  id: number;
+  rental_id_display: string;
+  rental_account_number: string;
+
+  lease: number;
+  lease_number?: string;
+
+  tenant_id?: number;
+  tenant_name?: string;
+
+  unit_id?: number;
+  unit_number?: string;
+
+  property_id?: number;
+  property_name?: string;
+
+  rent_type: "residential" | "commercial" | "parking" | "storage";
+  status: "active" | "suspended" | "closed";
+  billing_frequency: "monthly" | "quarterly" | "annually";
+
+  rent_amount: number | string;
+  service_charge: number | string;
+  parking_fee: number | string;
+  utility_charge: number | string;
+  internet_fee: number | string;
+  other_charge: number | string;
+
+  default_discount: number | string;
+
+  rent_escalation_applied: boolean;
+  escalation_percentage?: number | string | null;
+
+  grace_period_days: number;
+  late_payment_penalty_percent: number | string;
+  late_interest_rate: number | string;
+
+  gl_account: string;
+  cost_center: string;
+  financial_posting_status: string;
+
+  outstanding_balance: number | string;
+
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RentalInvoice {
+  id: number;
+  invoice_number: string;
+  invoice_date: string;
+
+  rental_account: number;
+  rental_account_number?: string;
+
+  lease_id?: number;
+  tenant_id?: number;
+  tenant_name?: string;
+
+  unit_id?: number;
+  unit_number?: string;
+
+  property_id?: number;
+  property_name?: string;
+
+  billing_period_start: string;
+  billing_period_end: string;
+  due_date: string;
+
+  base_rent: number | string;
+  service_charge: number | string;
+  parking_fee: number | string;
+  utility_charges: number | string;
+  internet_fee: number | string;
+  other_charges: number | string;
+  discount: number | string;
+  tax_vat: number | string;
+  late_payment_penalty: number | string;
+  interest_amount: number | string;
+  total_amount: number | string;
+
+  status:
+    | "draft"
+    | "issued"
+    | "partially_paid"
+    | "paid"
+    | "overdue"
+    | "cancelled";
+
+  amount_paid: number | string;
+  outstanding_balance: number | string;
+
+  payments: RentalPayment[];
+
+  gl_account: string;
+  cost_center: string;
+  financial_posting_status: string;
+
+  created_at: string;
+}
+
+export interface RentalPayment {
+  id: number;
+  invoice: number;
+  amount: number | string;
+
+  method:
+    | "bank_transfer"
+    | "mobile_money"
+    | "cash"
+    | "card";
+
+  paid_at: string;
+  transaction_reference: string;
+  receipt_number: string;
+}
+
+export interface RentalAdjustment {
+  id: number;
+  rental_account: number;
+
+  adjustment_type:
+    | "discount"
+    | "increase"
+    | "decrease"
+    | "escalation"
+    | "correction";
+
+  amount: number | string;
+  percentage?: number | string | null;
+  effective_date: string;
+  reason: string;
+
+  created_at: string;
+}
+
+export interface RentalDeposit {
+  id: number;
+  rental_account: number;
+
+  security_deposit: number | string;
+  deposit_balance: number | string;
+
+  refund_status:
+    | "not_applicable"
+    | "pending"
+    | "partially_refunded"
+    | "refunded";
+
+  refunded_amount: number | string;
+  refund_date?: string | null;
+
+  created_at: string;
+  updated_at: string;
+}

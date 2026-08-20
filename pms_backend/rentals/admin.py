@@ -11,9 +11,11 @@ class PaymentInline(admin.TabularInline):
 
 @admin.register(Invoice)
 class InvoiceAdmin(AuditableAdminMixin, admin.ModelAdmin):
-    list_display = ("invoice_number", "lease", "total_amount", "status", "due_date")
+    list_display = ("invoice_number", "rental_account", "total_amount", "status", "due_date")
     list_filter = ("organization", "status")
-    search_fields = ("invoice_number",)
+    search_fields = (
+    "invoice_number",
+    "rental_account__rental_account_number",)
     inlines = [PaymentInline]
 
 
